@@ -15,7 +15,7 @@ Java SDK for 6MM Agent REST API.
 
 ```xml
 <dependency>
-    <groupId>com.6mm.exchange</groupId>
+    <groupId>com.sixmm.exchange</groupId>
     <artifactId>6mm-agent-sdk</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>
