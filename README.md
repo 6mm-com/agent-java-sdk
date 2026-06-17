@@ -1,17 +1,60 @@
 # 6MM Agent Java SDK
 
-Java SDK for 6MM Agent REST API.
+Java SDK for the 6MM Agent REST API.
 
-第一版目标是让代理商接入时不需要自己处理签名、nonce、timestamp、金额字符串和 webhook 验签。SDK 以 Java 8 为最低版本，兼容存量 Spring Boot、传统 Tomcat 和较新的 Java 11/17/21 项目。
+This SDK is intended for partner backend services. It wraps request signing,
+timestamp and nonce generation, amount formatting, HTTP calls, business
+exceptions, entry URL creation, Trading Widget embed token creation, and
+webhook signature verification.
 
-## 要求
+Chinese documentation: [README.zh-CN.md](README.zh-CN.md)
+
+## Requirements
 
 - Java 8+
 - Maven 3.9+
 
-## Maven
+## What The SDK Covers
 
-当前仓库内版本：
+| Scenario | SDK API | Description |
+| --- | --- | --- |
+| Bind user | `bind` | Create or fetch the binding between a partner user and a 6MM platform user |
+| Fixed amount transfer | `transfer` | Transfer funds into or out of 6MM |
+| Transfer all out | `transferAllOut` | Move all withdrawable user balance back to the partner platform |
+| Reverse order | `reverse` | Reverse a successful transfer when the backend supports a compensation flow |
+| Query order | `queryOrder` | Query one transfer order by partner order number |
+| List orders | `listOrders` | Page through transfer orders for reconciliation |
+| Query partner account | `queryAccount` | Query the partner margin or funding account |
+| Query user assets | `queryUserAssets` | Query a bound user's 6MM-side assets |
+| Direct entry URL | `createEntryUrl` | Create a one-time SSO URL for redirect mode |
+| Embed token | `createEmbedToken` | Create a short-lived token for Trading Widget `tokenProvider` mode |
+| Service version | `version` | Query Agent service version information |
+| Webhook verification | `WebhookVerifier.verify` | Verify transfer final-state callbacks from 6MM |
+
+## Configuration
+
+Obtain the following values from 6MM or your internal operations system before
+integrating.
+
+| Item | Example | Description |
+| --- | --- | --- |
+| `baseUrl` | `https://agent-api.6mm.com` | Agent API base URL, without a trailing slash |
+| `agentCode` | `AGENT001` | Partner code |
+| `apiSecret` | `your-api-secret` | API signing secret. Keep it on the backend only |
+| `defaultCurrency` | `USDT` | Default currency, usually `USDT` |
+| `webhookUrl` | `https://partner.example.com/6mm/webhook` | Partner endpoint for 6MM callbacks |
+
+Production recommendations:
+
+- Use HTTPS for Agent API and webhook endpoints.
+- Store `apiSecret` in a secret manager, configuration center, or environment variable.
+- Keep server time synchronized, preferably with NTP.
+- Persist all partner order numbers and keep them globally unique.
+- Never send `apiSecret` to browsers, apps, mini programs, or frontend source code.
+
+## Maven Coordinates
+
+Current source coordinates:
 
 ```xml
 <dependency>
@@ -21,7 +64,9 @@ Java SDK for 6MM Agent REST API.
 </dependency>
 ```
 
-本地安装：
+GitHub is source hosting, not a Maven dependency repository. If the SDK has not
+been published to a Maven repository yet, install it into your local Maven
+repository first:
 
 ```bash
 git clone https://github.com/6mm-com/agent-java-sdk.git
@@ -30,48 +75,144 @@ git checkout v0.1.0
 mvn install
 ```
 
-说明：GitHub 仓库只提供源码托管。仓库公开后，接入方可以 clone 源码并执行
-`git checkout v0.1.0 && mvn install` 安装到自己的本地 Maven 仓库，但不能仅凭 GitHub 仓库地址在
-`pom.xml` 中直接引用上面的依赖坐标。要让外部项目直接通过 Maven 引入，需要
-额外发布到 Maven 仓库，例如公司私服、Maven Central、GitHub Packages，或接入
-JitPack 这类基于 GitHub 构建的服务。
+After local installation, your business project can resolve
+`com.sixmm.exchange.sdk:agent:0.1.0` from the local Maven repository.
 
-## 初始化
+For team builds and test environments, publish the SDK to a Maven repository
+such as Nexus, Artifactory, GitHub Packages, Maven Central, or use a GitHub
+based build service such as JitPack.
+
+## Client Initialization
+
+### Plain Java
 
 ```java
 import com.sixmm.agent.AgentClient;
 import com.sixmm.agent.AgentClientConfig;
 
 AgentClient client = new AgentClient(AgentClientConfig.builder()
-        .baseUrl("https://agent.example.com")
+        .baseUrl("https://agent-api.6mm.com")
         .agentCode("AGENT001")
         .apiSecret("your-api-secret")
         .defaultCurrency("USDT")
         .build());
 ```
 
-SDK 会自动注入以下字段：
+### Spring Boot
 
-- `agentCode`
-- `timestamp`
-- `nonce`
-- `sign`
+```java
+import com.sixmm.agent.AgentClient;
+import com.sixmm.agent.AgentClientConfig;
+import java.time.Duration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
-签名算法与 agent 服务端一致：排除 `sign`，空值不参与，按 key ASCII 排序，拼接为 `k=v&k2=v2` 后计算 HMAC-SHA256 hex。
+@Configuration
+public class AgentSdkConfig {
 
-## 绑定用户
+    @Bean
+    public AgentClient agentClient(AgentSdkProperties props) {
+        return new AgentClient(AgentClientConfig.builder()
+                .baseUrl(props.getBaseUrl())
+                .agentCode(props.getAgentCode())
+                .apiSecret(props.getApiSecret())
+                .defaultCurrency("USDT")
+                .timeout(Duration.ofSeconds(10))
+                .build());
+    }
+}
+```
+
+Example application properties:
+
+```properties
+agent.sdk.base-url=https://agent-api.6mm.com
+agent.sdk.agent-code=AGENT001
+agent.sdk.api-secret=${AGENT_API_SECRET}
+```
+
+## Automatic Signing Fields
+
+For signed Agent API calls, the SDK automatically injects:
+
+| Field | Source | Description |
+| --- | --- | --- |
+| `agentCode` | `AgentClientConfig.agentCode` | Partner code |
+| `timestamp` | Current UTC Unix timestamp | Seconds |
+| `nonce` | Secure random generator | Replay protection |
+| `sign` | HMAC-SHA256 | Request signature |
+| `currency` | `defaultCurrency` | Filled when transfer/account requests omit currency |
+
+Signing rules:
+
+1. Exclude `sign`.
+2. Exclude empty values.
+3. Sort keys by ASCII order.
+4. Join as `k=v&k2=v2`.
+5. Calculate HMAC-SHA256 hex with `apiSecret`.
+
+Normal business code should not calculate signatures or manually set
+`agentCode`, `timestamp`, `nonce`, or `sign`.
+
+## User ID Rules
+
+`platformUserId` is the 6MM external user ID. It is currently a 10-digit numeric
+string, for example:
+
+```text
+1188041528
+```
+
+Rules:
+
+- Store it as a string, not as an integer.
+- Do not generate, decode, or infer meaning from it.
+- Use your own partner-side user ID as `agentUserId`.
+- Persist the relationship among `agentUserId`, `platformUserId`, and `agentOrderNo`.
+
+## Bind User
+
+Bind creates or fetches the relationship between a partner user and a 6MM
+platform user. Call it when a user first enters the trading flow or before the
+first transfer into 6MM.
 
 ```java
 import com.sixmm.agent.model.BindRequest;
 import com.sixmm.agent.model.BindResponse;
 
-BindResponse resp = client.bind(BindRequest.of("agent-user-001"));
+BindResponse resp = client.bind(
+        BindRequest.of("agent-user-001")
+                .withExt("{\"source\":\"web\"}"));
+
 System.out.println(resp.platformUserId);
+System.out.println(resp.bindStatus);
+System.out.println(resp.isSimulatedUser);
 ```
 
-`platformUserId` 为平台返回的用户标识，10 位纯数字字符串，例如 `1188041528`。请按字符串保存，用于后续查询、webhook 对账或页面展示；不要自行生成、拆解或推断其含义。
+Request fields:
 
-## 固定金额划转
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `agentUserId` | string | Yes | Unique partner-side user ID |
+| `ext` | string | No | Extension field. JSON string is recommended |
+
+Response fields:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `platformUserId` | string | 6MM external user ID |
+| `bindStatus` | string | Usually `BOUND` |
+| `isSimulatedUser` | boolean | Whether this is a simulated user |
+
+## Fixed Amount Transfer
+
+Use `transfer` for fixed amount transfers. `Direction.IN` means transferring
+from the partner platform into 6MM. `Direction.OUT` means transferring from 6MM
+back to the partner platform.
+
+Use strings or `BigDecimal` for amounts. Do not use `double` or `float`.
+
+### Transfer By `agentUserId`
 
 ```java
 import com.sixmm.agent.model.Direction;
@@ -85,66 +226,133 @@ TransferResponse resp = client.transfer(TransferRequest.fixed(
         "USDT",
         "10.00"));
 
+System.out.println(resp.orderNo);
 System.out.println(resp.orderStatus);
 System.out.println(resp.agentUserId);
 System.out.println(resp.platformUserId);
 ```
 
-`Direction.IN` 表示转入平台，`Direction.OUT` 表示转出平台。金额使用字符串，避免浮点精度问题。
-
-划转用户可用 `agentUserId` 或 `platformUserId` 定位。`platformUserId` 是 `bind` 返回的 10 位 public ID：
+### Transfer By `platformUserId`
 
 ```java
 TransferResponse resp = client.transfer(TransferRequest.fixedByPlatformUserId(
-        "AGT-ORDER-1001",
+        "AGT-ORDER-1002",
         "1188041528",
-        Direction.IN,
+        Direction.OUT,
         "USDT",
-        "10.00"));
+        "5.00"));
 ```
 
-如果两个 ID 都传，必须指向同一绑定用户：
+### Provide Both IDs
+
+If both IDs are provided, the service validates that they point to the same
+bound user.
 
 ```java
 TransferRequest req = TransferRequest
-        .fixed("AGT-ORDER-1001", "agent-user-001", Direction.IN, "USDT", "10.00")
+        .fixed("AGT-ORDER-1003", "agent-user-001", Direction.IN, "USDT", "20.00")
         .withPlatformUserId("1188041528");
+
+TransferResponse resp = client.transfer(req);
 ```
 
-同步响应会返回 `agentUserId` 和 `platformUserId`，其中 `platformUserId` 固定为 public ID。
+Request fields:
 
-## 接口返回与订单确认
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `agentOrderNo` | string | Yes | Globally unique partner order number |
+| `agentUserId` | string | Conditionally | Required when `platformUserId` is absent |
+| `platformUserId` | string | Conditionally | Required when `agentUserId` is absent |
+| `direction` | enum | Yes | `IN` or `OUT` |
+| `currency` | string | No | Filled from `defaultCurrency` when absent |
+| `amount` | string | Yes | Decimal amount string |
 
-SDK 调用 agent API 后，agent 服务会在主路径同步调用平台交易核心（TK）RPC，并按 TK 返回结果推进订单状态。除非 TK RPC server 超时或网络异常，否则接口返回时已经拿到 TK 同步结果。
+Response fields:
 
-- 返回 `orderStatus=SUCCESS`：本次划转已由 TK 同步确认成功。
-- 返回 `orderStatus=FAILED` 或抛出业务异常：TK 已同步拒绝，拒绝原因以响应中的业务码和消息为准。
-- 返回 `orderStatus=PROCESSING`：通常表示 TK RPC server 超时或网络异常。代理商应使用 webhook 或 `queryOrder` 查询最终状态。
+| Field | Type | Description |
+| --- | --- | --- |
+| `orderNo` | string | Platform order number |
+| `orderStatus` | string | `SUCCESS`, `FAILED`, `PROCESSING`, etc. |
+| `agentUserId` | string | Partner-side user ID |
+| `platformUserId` | string | 6MM external user ID |
 
-真实用户和模拟用户都使用同一个 `transfer` 接口。模拟用户转入平台只影响该用户的平台余额，不会扣减代理商保证金；接口入参不需要也不允许传用户类型。
+## Order Confirmation And Idempotency
 
-## 全部划出
+After `transfer` is called, the Agent service synchronously calls the trading
+core on the main path. In most cases, the API response already contains the
+synchronous trading-core result.
+
+| Result | Meaning | Partner action |
+| --- | --- | --- |
+| `SUCCESS` | Transfer succeeded | Mark local order as successful |
+| `FAILED` | Transfer was rejected or failed | Save the failure reason and show it when appropriate |
+| `PROCESSING` | Trading core timeout or network uncertainty | Do not retry with a new order number. Wait for webhook or call `queryOrder` |
+
+Idempotency requirements:
+
+- Use one `agentOrderNo` for one business transaction.
+- If HTTP times out or the network fails, query the same `agentOrderNo` first.
+- Webhooks may be retried. Deduplicate them by idempotency key.
+
+## Transfer All Out
+
+`transferAllOut` moves the user's withdrawable 6MM-side balance back to the
+partner platform.
 
 ```java
 import com.sixmm.agent.model.TransferAllOutRequest;
 import com.sixmm.agent.model.TransferAllOutResponse;
 
 TransferAllOutResponse resp = client.transferAllOut(
-        TransferAllOutRequest.of("AGT-ORDER-1002", "agent-user-001", "USDT"));
+        TransferAllOutRequest.of("AGT-ORDER-2001", "agent-user-001", "USDT"));
 
+System.out.println(resp.orderStatus);
 System.out.println(resp.amount);
-System.out.println(resp.agentUserId);
-System.out.println(resp.platformUserId);
 ```
 
-全部划出也支持使用 `platformUserId` 定位：
+By `platformUserId`:
 
 ```java
 TransferAllOutResponse resp = client.transferAllOut(
-        TransferAllOutRequest.byPlatformUserId("AGT-ORDER-1002", "1188041528", "USDT"));
+        TransferAllOutRequest.byPlatformUserId("AGT-ORDER-2002", "1188041528", "USDT"));
 ```
 
-## 查单
+`amount` in the response is the actual transferred amount.
+
+## Reverse Order
+
+Reverse is used to compensate a successful transfer order when the backend
+supports the reverse flow. Typical cases include partner local order exceptions
+or manual reconciliation rollback.
+
+```java
+import com.sixmm.agent.model.ReverseOrderRequest;
+import com.sixmm.agent.model.ReverseOrderResponse;
+
+ReverseOrderResponse resp = client.reverse(ReverseOrderRequest.of(
+        "AGT-ORDER-1001",
+        "REV-ORDER-1001",
+        "partner order rollback"));
+
+System.out.println(resp.orderStatus);
+```
+
+Fields:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `origOrderNo` | string | Yes | Original transfer order number |
+| `reverseOrderNo` | string | Yes | Globally unique reverse order number |
+| `reverseReason` | string | Yes | Reverse reason |
+
+Notes:
+
+- Reverse is not a normal cancel operation.
+- Reverse orders must also be idempotent by order number.
+- After an original order is reversed, webhook may push the original order's
+  `REVERSED` final state.
+
+## Query Order
 
 ```java
 import com.sixmm.agent.model.OrderQueryType;
@@ -155,9 +363,103 @@ QueryOrderResponse resp = client.queryOrder(
         QueryOrderRequest.of("AGT-ORDER-1001", OrderQueryType.TRANSFER_IN));
 
 System.out.println(resp.status);
+System.out.println(resp.failReason);
 ```
 
-## 创建前端入口链接
+Supported `orderType` values:
+
+- `TRANSFER_IN`
+- `TRANSFER_OUT`
+
+Common response fields:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `orderType` | string | Order type |
+| `orderNo` | string | Partner order number |
+| `status` | string | Order status |
+| `direction` | string | `IN` or `OUT` |
+| `transferMode` | string | `FIXED_AMOUNT` or `ALL_OUT` |
+| `currency` | string | Currency |
+| `amount` | string | Amount |
+| `agentUserId` | string | Partner-side user ID |
+| `platformUserId` | string | 6MM external user ID |
+| `failReason` | string | Failure reason |
+| `createdAt` | string | Creation time |
+| `completedAt` | string | Completion time |
+
+## List Orders
+
+```java
+import com.sixmm.agent.model.ListOrdersRequest;
+import com.sixmm.agent.model.ListOrdersResponse;
+
+ListOrdersRequest req = ListOrdersRequest.page(1, 20);
+req.orderType = "TRANSFER_IN";
+req.status = "SUCCESS";
+req.startTime = "2026-06-01T00:00:00Z";
+req.endTime = "2026-06-16T00:00:00Z";
+
+ListOrdersResponse resp = client.listOrders(req);
+
+System.out.println(resp.total);
+resp.orders.forEach(order -> System.out.println(order.orderNo));
+```
+
+Pagination recommendations:
+
+- `page` starts from 1.
+- Keep `pageSize` at or below 100.
+- For reconciliation jobs, page by time window and deduplicate by `orderNo`.
+
+## Query Partner Account
+
+```java
+import com.sixmm.agent.model.QueryAccountRequest;
+import com.sixmm.agent.model.QueryAccountResponse;
+
+QueryAccountResponse resp = client.queryAccount(QueryAccountRequest.of("USDT"));
+
+System.out.println(resp.agentCode);
+System.out.println(resp.agentStatus);
+resp.assets.forEach(asset -> {
+    System.out.println(asset.currency);
+    System.out.println(asset.depositBalance);
+});
+```
+
+When `currency` is absent, the SDK uses `defaultCurrency`.
+
+## Query User Assets
+
+```java
+import com.sixmm.agent.model.QueryUserAssetsRequest;
+import com.sixmm.agent.model.QueryUserAssetsResponse;
+
+QueryUserAssetsResponse resp = client.queryUserAssets(
+        QueryUserAssetsRequest.of("1188041528"));
+
+System.out.println(resp.walletBalance);
+System.out.println(resp.availableBalance);
+System.out.println(resp.version);
+```
+
+Fields:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `walletBalance` | string | Wallet balance |
+| `frozenMargin` | string | Frozen margin |
+| `usedMargin` | string | Used margin |
+| `availableBalance` | string | Available balance |
+| `isolatedMargin` | string | Isolated margin |
+| `version` | int64 | Asset version |
+| `isSimulatedUser` | boolean | Whether this is a simulated user |
+
+## Direct Entry URL
+
+Direct entry URL is for redirect mode. A partner user clicks a button on the
+partner site, opens 6MM frontend, and is automatically logged in.
 
 ```java
 import com.sixmm.agent.model.CreateEntryUrlRequest;
@@ -166,55 +468,72 @@ import com.sixmm.agent.model.CreateEntryUrlResponse;
 CreateEntryUrlResponse resp = client.createEntryUrl(
         CreateEntryUrlRequest.of("agent-user-001")
                 .withRedirectPath("/trade/BTCUSDT")
-                .withReturnUrl("https://partner.example/return#markets"));
+                .withReturnUrl("https://partner.example.com/return#markets"));
 
 System.out.println(resp.webUrl);
+System.out.println(resp.expireAt);
 ```
 
-`returnUrl` 可选，仅用于直接跳转模式下让 6MM 前端在用户退出时跳回代理商站点；非空时必须是 `http` 或 `https` 绝对地址。
+Field rules:
 
-## 创建内嵌交易 token
+| Field | Description |
+| --- | --- |
+| `redirectPath` | 6MM frontend relative path. It must start with `/`, for example `/trade/BTCUSDT` |
+| `returnUrl` | Partner absolute URL used when the user exits 6MM frontend. Only `http` and `https` are allowed |
+| `expireAt` | Entry ticket expiration time as a Unix timestamp in seconds |
 
-Trading Widget `tokenProvider` 模式使用该接口。`channelId` 必须使用 SDK 传给 Partner 前端的值，Partner 后端只负责转发并签名调用 agent API。
+Security requirements:
+
+- `webUrl` contains a one-time ticket. Use it immediately and do not store it long term.
+- If the entry URL expires or has been used, generate a new one from the partner site.
+- `returnUrl` must not be `javascript:`, a relative path, or a URL with userinfo.
+
+## Trading Widget Embed Token
+
+Embed token is for Trading Widget SDK `partner-token + tokenProvider` mode. The
+browser calls the partner backend, and the partner backend calls this Java SDK
+to create an `embedToken`.
 
 ```java
 import com.sixmm.agent.model.CreateEmbedTokenRequest;
 import com.sixmm.agent.model.CreateEmbedTokenResponse;
 
 CreateEmbedTokenResponse resp = client.createEmbedToken(
-        CreateEmbedTokenRequest.of("agent-user-001", "tw_abc123").withSymbol("ETHUSDT"));
+        CreateEmbedTokenRequest.of("agent-user-001", "tw_abc123")
+                .withSymbol("ETHUSDT"));
 
 System.out.println(resp.embedToken);
 System.out.println(resp.expireAt);
 ```
 
-## 业务异常
+Integration requirements:
 
-HTTP 非 2xx 或 agent 响应 `code != 0` 时，SDK 抛 `AgentApiException`：
+- `channelId` must use the value passed by the Trading Widget SDK.
+- `symbol` is optional, but it is recommended to pass the current initial symbol.
+- `embedToken` is short-lived and one-time. Do not put it into URL query strings.
+- The partner frontend must never hold `apiSecret`.
+- `expireAt` is a Unix timestamp in seconds, not a TTL.
+
+Partner backend endpoint example:
 
 ```java
-import com.sixmm.agent.AgentApiException;
+@PostMapping("/api/trading/embed-token")
+public EmbedTokenView createEmbedToken(@RequestBody EmbedTokenRequest request,
+                                       PartnerSession session) {
+    String agentUserId = session.getAgentUserId();
+    CreateEmbedTokenResponse resp = agentClient.createEmbedToken(
+            CreateEmbedTokenRequest.of(agentUserId, request.getChannelId())
+                    .withSymbol(request.getSymbol()));
 
-try {
-    client.queryOrder(QueryOrderRequest.of("missing-order", OrderQueryType.TRANSFER_IN));
-} catch (AgentApiException e) {
-    System.out.println(e.getHttpStatus());
-    System.out.println(e.getCode());
-    System.out.println(e.getResponseBody());
+    return new EmbedTokenView(resp.embedToken, resp.expireAt, request.getChannelId());
 }
 ```
 
-网络、序列化、配置错误抛 `AgentSdkException`。
+## Webhook Verification
 
-## Webhook 验签
-
-agent 服务推送 webhook 时使用请求头：
-
-- `X-Agent-Timestamp`
-- `X-Agent-Nonce`
-- `X-Agent-Signature`
-
-验签示例：
+6MM pushes a webhook to the configured `webhookUrl` when a transfer order reaches
+a final state. The SDK provides signature verification and idempotency key
+helpers.
 
 ```java
 import com.sixmm.agent.WebhookVerifier;
@@ -226,26 +545,182 @@ boolean ok = WebhookVerifier.verify(
         rawRequestBodyBytes,
         signatureHeader);
 
+if (!ok) {
+    throw new SecurityException("invalid 6mm webhook signature");
+}
+
 String idempotencyKey = WebhookVerifier.idempotencyKey(rawRequestBodyBytes);
 ```
 
-`idempotencyKey` 格式为 `orderType:orderId:targetStatus`，可用于代理商侧 webhook 幂等处理。
+Webhook headers:
 
-### Webhook 推送事件
+| Header | Description |
+| --- | --- |
+| `X-Agent-Timestamp` | Unix timestamp in seconds |
+| `X-Agent-Nonce` | Nonce |
+| `X-Agent-Signature` | HMAC-SHA256 signature |
 
-Webhook 只在订单到达终态时推送，不会推送 `PROCESSING`。
+Signature payload:
 
-| `event` | 触发场景 | 常见 `targetStatus` |
-|---------|----------|---------------------|
-| `transfer.completed` | 普通固定金额划转、全部划出订单到达终态；原订单被冲正后也会收到该事件 | `SUCCESS` / `FAILED` / `REVERSED` |
-| `reverse.completed` | 冲正订单到达终态 | `SUCCESS` / `FAILED` |
-| `transfer.dead` | 系统多次重试后仍无法确认订单最终状态，需要人工介入 | `DEAD` |
+```text
+timestamp + nonce + rawBody
+```
 
-Webhook 请求体里的 `platformUserId` 与 `bind` 返回值一致；`agentUserId` 为代理商侧用户标识。代理商应以 `orderType + orderId + targetStatus` 或 SDK 生成的 `idempotencyKey` 做幂等，避免重试通知导致重复处理。
+Partner-side recommendations:
 
-## 测试
+- Reject requests whose timestamp differs from server time by more than 5 minutes.
+- Cache nonce values to prevent replay.
+- Deduplicate by `WebhookVerifier.idempotencyKey(rawBody)`.
+- Return HTTP 2xx after successful processing. Non-2xx responses may trigger retries.
+
+Webhook events:
+
+| `event` | Trigger | Common `targetStatus` |
+| --- | --- | --- |
+| `transfer.completed` | Fixed amount transfer or transfer-all-out reaches final state. Original order may also emit this after reverse | `SUCCESS` / `FAILED` / `REVERSED` |
+| `reverse.completed` | Reverse order reaches final state | `SUCCESS` / `FAILED` |
+| `transfer.dead` | System retries cannot confirm the final state and manual intervention is required | `DEAD` |
+
+`platformUserId` in webhook payload is the same value returned by `bind`.
+`agentUserId` is the partner-side user ID. Use
+`orderType + orderId + targetStatus` or the SDK-generated `idempotencyKey` for
+deduplication.
+
+## Error Handling
+
+SDK exceptions are split into two categories:
+
+| Exception | Scenario | Suggested handling |
+| --- | --- | --- |
+| `AgentApiException` | HTTP status is not 2xx, or Agent response `code != 0` | Read `getHttpStatus()`, `getCode()`, and `getResponseBody()` and treat it as a business/API failure |
+| `AgentSdkException` | Network, serialization, configuration, or signing failure | Log it and treat it as a system exception |
+
+Example:
+
+```java
+import com.sixmm.agent.AgentApiException;
+import com.sixmm.agent.AgentSdkException;
+
+try {
+    TransferResponse resp = client.transfer(TransferRequest.fixed(
+            "AGT-ORDER-1001", "agent-user-001", Direction.IN, "USDT", "10.00"));
+    // Update the local order according to resp.orderStatus.
+} catch (AgentApiException e) {
+    // Business rejection or HTTP error.
+    log.warn("6mm agent api rejected request, httpStatus={}, code={}, body={}",
+            e.getHttpStatus(), e.getCode(), e.getResponseBody());
+} catch (AgentSdkException e) {
+    // Local SDK error or network error.
+    log.error("6mm agent sdk request failed", e);
+}
+```
+
+## Recommended Business Flows
+
+### First Trading Entry
+
+```text
+1. User logs in to the partner site.
+2. Partner backend calls bind with agentUserId.
+3. Partner stores the agentUserId and platformUserId relationship.
+4. User clicks the trading entry.
+5. Redirect mode: call createEntryUrl and open webUrl in the browser.
+6. Embed mode: Trading Widget calls tokenProvider, and partner backend calls createEmbedToken.
+```
+
+### Deposit Into 6MM
+
+```text
+1. Partner creates a unique agentOrderNo.
+2. Partner calls transfer(Direction.IN).
+3. If SUCCESS is returned, mark the local order as successful.
+4. If PROCESSING is returned, wait for webhook or poll queryOrder.
+5. If FAILED is returned or AgentApiException is thrown, handle it as failed.
+```
+
+### Withdraw Back To Partner
+
+```text
+1. Partner creates a unique agentOrderNo.
+2. Fixed amount withdraw: call transfer(Direction.OUT).
+3. Full withdraw: call transferAllOut.
+4. Confirm the final result by orderStatus, webhook, or queryOrder.
+```
+
+## Logging And Troubleshooting
+
+Partner backend logs should include at least:
+
+- `agentOrderNo`
+- `agentUserId`
+- `platformUserId`
+- `direction`
+- `currency`
+- `amount`
+- `orderStatus`
+- `AgentApiException.code`
+- `requestId` if present in the response body
+
+Do not log full `apiSecret`, full signatures, or sensitive user information.
+
+## Integration Checklist
+
+| Check | Expected result |
+| --- | --- |
+| `client.version()` | Returns service name, version, and commit information |
+| `bind` | Returns `platformUserId` and `BOUND` |
+| Small `transfer IN` | Returns `SUCCESS` or can be confirmed successful through `queryOrder` |
+| Small `transfer OUT` | Returns `SUCCESS` or can be confirmed successful through `queryOrder` |
+| Duplicate `agentOrderNo` | Does not create duplicate fund movement |
+| Webhook signature verification | Valid signature passes; tampered body fails |
+| Webhook idempotency | Duplicate webhook delivery does not create duplicate accounting |
+| `createEntryUrl` | Browser can open and enter the 6MM frontend |
+| `createEmbedToken` | Trading Widget can complete embedded authentication |
+
+## FAQ
+
+### Can `platformUserId` be stored as `long`?
+
+No. Store it as a string. It is currently numeric-looking, but the external
+contract is string.
+
+### Can I retry with a new order number after timeout?
+
+Do not do that immediately. Query the original `agentOrderNo` first. Only create
+a new order after the original order is confirmed absent or failed and your
+business flow explicitly decides to retry.
+
+### Is `PROCESSING` a failure?
+
+No. It means the final result is still uncertain. Wait for webhook or query the
+order actively.
+
+### Why should amounts be strings?
+
+To avoid floating-point precision issues. Java business code may use
+`BigDecimal`; the SDK serializes it as a plain decimal string.
+
+### What if webhook is received multiple times?
+
+That is expected retry behavior. Deduplicate by `orderType:orderId:targetStatus`
+or the SDK `idempotencyKey`.
+
+### Can Trading Widget call Agent API directly from the browser?
+
+No. Browsers must not hold `apiSecret`. The correct flow is browser -> partner
+backend -> `createEmbedToken`.
+
+## Local Test Commands
+
+Run from the SDK repository root:
 
 ```bash
 mvn test
 mvn package
+```
+
+If a business project uses local installation:
+
+```bash
+mvn clean install
 ```
