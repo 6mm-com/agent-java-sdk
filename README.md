@@ -1,6 +1,6 @@
-# Freedex Agent Java SDK
+# 6MM Agent Java SDK
 
-Java SDK for Freedex Agent REST API.
+Java SDK for 6MM Agent REST API.
 
 第一版目标是让代理商接入时不需要自己处理签名、nonce、timestamp、金额字符串和 webhook 验签。SDK 以 Java 8 为最低版本，兼容存量 Spring Boot、传统 Tomcat 和较新的 Java 11/17/21 项目。
 
@@ -15,8 +15,8 @@ Java SDK for Freedex Agent REST API.
 
 ```xml
 <dependency>
-    <groupId>com.freedex.exchange</groupId>
-    <artifactId>freedex-agent-sdk</artifactId>
+    <groupId>com.6mm.exchange</groupId>
+    <artifactId>6mm-agent-sdk</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>
 ```
@@ -30,8 +30,8 @@ mvn install
 ## 初始化
 
 ```java
-import com.freedex.agent.AgentClient;
-import com.freedex.agent.AgentClientConfig;
+import com.sixmm.agent.AgentClient;
+import com.sixmm.agent.AgentClientConfig;
 
 AgentClient client = new AgentClient(AgentClientConfig.builder()
         .baseUrl("https://agent.example.com")
@@ -53,8 +53,8 @@ SDK 会自动注入以下字段：
 ## 绑定用户
 
 ```java
-import com.freedex.agent.model.BindRequest;
-import com.freedex.agent.model.BindResponse;
+import com.sixmm.agent.model.BindRequest;
+import com.sixmm.agent.model.BindResponse;
 
 BindResponse resp = client.bind(BindRequest.of("agent-user-001"));
 System.out.println(resp.platformUserId);
@@ -65,9 +65,9 @@ System.out.println(resp.platformUserId);
 ## 固定金额划转
 
 ```java
-import com.freedex.agent.model.Direction;
-import com.freedex.agent.model.TransferRequest;
-import com.freedex.agent.model.TransferResponse;
+import com.sixmm.agent.model.Direction;
+import com.sixmm.agent.model.TransferRequest;
+import com.sixmm.agent.model.TransferResponse;
 
 TransferResponse resp = client.transfer(TransferRequest.fixed(
         "AGT-ORDER-1001",
@@ -117,8 +117,8 @@ SDK 调用 agent API 后，agent 服务会在主路径同步调用平台交易�
 ## 全部划出
 
 ```java
-import com.freedex.agent.model.TransferAllOutRequest;
-import com.freedex.agent.model.TransferAllOutResponse;
+import com.sixmm.agent.model.TransferAllOutRequest;
+import com.sixmm.agent.model.TransferAllOutResponse;
 
 TransferAllOutResponse resp = client.transferAllOut(
         TransferAllOutRequest.of("AGT-ORDER-1002", "agent-user-001", "USDT"));
@@ -138,9 +138,9 @@ TransferAllOutResponse resp = client.transferAllOut(
 ## 查单
 
 ```java
-import com.freedex.agent.model.OrderQueryType;
-import com.freedex.agent.model.QueryOrderRequest;
-import com.freedex.agent.model.QueryOrderResponse;
+import com.sixmm.agent.model.OrderQueryType;
+import com.sixmm.agent.model.QueryOrderRequest;
+import com.sixmm.agent.model.QueryOrderResponse;
 
 QueryOrderResponse resp = client.queryOrder(
         QueryOrderRequest.of("AGT-ORDER-1001", OrderQueryType.TRANSFER_IN));
@@ -151,8 +151,8 @@ System.out.println(resp.status);
 ## 创建前端入口链接
 
 ```java
-import com.freedex.agent.model.CreateEntryUrlRequest;
-import com.freedex.agent.model.CreateEntryUrlResponse;
+import com.sixmm.agent.model.CreateEntryUrlRequest;
+import com.sixmm.agent.model.CreateEntryUrlResponse;
 
 CreateEntryUrlResponse resp = client.createEntryUrl(
         CreateEntryUrlRequest.of("agent-user-001")
@@ -169,8 +169,8 @@ System.out.println(resp.webUrl);
 Trading Widget `tokenProvider` 模式使用该接口。`channelId` 必须使用 SDK 传给 Partner 前端的值，Partner 后端只负责转发并签名调用 agent API。
 
 ```java
-import com.freedex.agent.model.CreateEmbedTokenRequest;
-import com.freedex.agent.model.CreateEmbedTokenResponse;
+import com.sixmm.agent.model.CreateEmbedTokenRequest;
+import com.sixmm.agent.model.CreateEmbedTokenResponse;
 
 CreateEmbedTokenResponse resp = client.createEmbedToken(
         CreateEmbedTokenRequest.of("agent-user-001", "tw_abc123").withSymbol("ETHUSDT"));
@@ -184,7 +184,7 @@ System.out.println(resp.expireAt);
 HTTP 非 2xx 或 agent 响应 `code != 0` 时，SDK 抛 `AgentApiException`：
 
 ```java
-import com.freedex.agent.AgentApiException;
+import com.sixmm.agent.AgentApiException;
 
 try {
     client.queryOrder(QueryOrderRequest.of("missing-order", OrderQueryType.TRANSFER_IN));
@@ -208,7 +208,7 @@ agent 服务推送 webhook 时使用请求头：
 验签示例：
 
 ```java
-import com.freedex.agent.WebhookVerifier;
+import com.sixmm.agent.WebhookVerifier;
 
 boolean ok = WebhookVerifier.verify(
         "your-api-secret",
