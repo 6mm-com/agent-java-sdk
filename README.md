@@ -15,8 +15,8 @@ Java SDK for 6MM Agent REST API.
 
 ```xml
 <dependency>
-    <groupId>com.sixmm.exchange</groupId>
-    <artifactId>6mm-agent-sdk</artifactId>
+    <groupId>com.sixmm.exchange.sdk</groupId>
+    <artifactId>agent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>
 ```
@@ -26,6 +26,12 @@ Java SDK for 6MM Agent REST API.
 ```bash
 mvn install
 ```
+
+说明：GitHub 仓库只提供源码托管。仓库公开后，接入方可以 clone 源码并执行
+`mvn install` 安装到自己的本地 Maven 仓库，但不能仅凭 GitHub 仓库地址在
+`pom.xml` 中直接引用上面的依赖坐标。要让外部项目直接通过 Maven 引入，需要
+额外发布到 Maven 仓库，例如公司私服、Maven Central、GitHub Packages，或接入
+JitPack 这类基于 GitHub 构建的服务。
 
 ## 初始化
 
