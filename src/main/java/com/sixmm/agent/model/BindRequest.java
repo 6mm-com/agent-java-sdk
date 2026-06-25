@@ -2,6 +2,7 @@ package com.sixmm.agent.model;
 
 public class BindRequest {
     public String agentUserId;
+    public String username;
     public String ext;
 
     public static BindRequest of(String agentUserId) {
@@ -12,6 +13,11 @@ public class BindRequest {
 
     public BindRequest withExt(String ext) {
         this.ext = ext;
+        return this;
+    }
+
+    public BindRequest withUsername(String username) {
+        this.username = username;
         return this;
     }
 }

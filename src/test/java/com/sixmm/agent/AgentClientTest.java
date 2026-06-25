@@ -86,9 +86,10 @@ class AgentClientTest {
                 "{\"code\":0,\"message\":\"success\",\"platformUserId\":\"1188041528\",\"bindStatus\":\"BOUND\",\"isSimulatedUser\":true}");
         AgentClient client = newClient(transport);
 
-        BindResponse response = client.bind(BindRequest.of("u-1"));
+        BindResponse response = client.bind(BindRequest.of("u-1").withUsername("Alice"));
 
         assertTrue(response.isSimulatedUser);
+        assertTrue(transport.lastBody.contains("\"username\":\"Alice\""));
     }
 
     @Test

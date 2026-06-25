@@ -2,7 +2,7 @@
 
 > 适用对象：代理商后端研发、技术支持、联调人员
 > SDK：`com.sixmm.exchange.sdk:agent`
-> 当前源码版本：`0.1.0`
+> 当前源码版本：`0.1.1`
 > 最低运行环境：Java 8+
 
 ## 1. 文档目的
@@ -57,7 +57,7 @@ SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏�
 <dependency>
     <groupId>com.sixmm.exchange.sdk</groupId>
     <artifactId>agent</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1</version>
 </dependency>
 ```
 
@@ -68,12 +68,12 @@ SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏�
 ```bash
 git clone https://github.com/6mm-com/agent-java-sdk.git
 cd agent-java-sdk
-git checkout v0.1.0
+git checkout v0.1.1
 mvn install
 ```
 
 说明：GitHub 仓库只提供源码托管。仓库公开后，接入方可以 clone 源码并执行
-`git checkout v0.1.0 && mvn install` 安装到自己的本地 Maven 仓库，但不能仅凭 GitHub 仓库地址在
+`git checkout v0.1.1 && mvn install` 安装到自己的本地 Maven 仓库，但不能仅凭 GitHub 仓库地址在
 `pom.xml` 中直接引用上面的依赖坐标。要让外部项目直接通过 Maven 引入，需要
 额外发布到 Maven 仓库，例如公司私服、Maven Central、GitHub Packages，或接入
 JitPack 这类基于 GitHub 构建的服务。
@@ -168,6 +168,7 @@ import com.sixmm.agent.model.BindResponse;
 
 BindResponse resp = client.bind(
         BindRequest.of("agent-user-001")
+                .withUsername("alice")
                 .withExt("{\"source\":\"web\"}"));
 
 System.out.println(resp.platformUserId);
@@ -180,6 +181,7 @@ System.out.println(resp.isSimulatedUser);
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `agentUserId` | string | 是 | 代理商侧用户唯一标识 |
+| `username` | string | 否 | 代理商侧用户展示名称；传入后 6MM 会写入 `users.nick_name` |
 | `ext` | string | 否 | 扩展信息，建议传 JSON 字符串 |
 
 ### 8.2 响应字段

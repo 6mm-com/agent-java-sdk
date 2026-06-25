@@ -60,7 +60,7 @@ Current source coordinates:
 <dependency>
     <groupId>com.sixmm.exchange.sdk</groupId>
     <artifactId>agent</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1</version>
 </dependency>
 ```
 
@@ -71,12 +71,12 @@ repository first:
 ```bash
 git clone https://github.com/6mm-com/agent-java-sdk.git
 cd agent-java-sdk
-git checkout v0.1.0
+git checkout v0.1.1
 mvn install
 ```
 
 After local installation, your business project can resolve
-`com.sixmm.exchange.sdk:agent:0.1.0` from the local Maven repository.
+`com.sixmm.exchange.sdk:agent:0.1.1` from the local Maven repository.
 
 For team builds and test environments, publish the SDK to a Maven repository
 such as Nexus, Artifactory, GitHub Packages, Maven Central, or use a GitHub
@@ -182,6 +182,7 @@ import com.sixmm.agent.model.BindResponse;
 
 BindResponse resp = client.bind(
         BindRequest.of("agent-user-001")
+                .withUsername("alice")
                 .withExt("{\"source\":\"web\"}"));
 
 System.out.println(resp.platformUserId);
@@ -194,6 +195,7 @@ Request fields:
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `agentUserId` | string | Yes | Unique partner-side user ID |
+| `username` | string | No | Partner-side display name. When provided, 6MM writes it to `users.nick_name` |
 | `ext` | string | No | Extension field. JSON string is recommended |
 
 Response fields:
