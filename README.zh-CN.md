@@ -2,12 +2,12 @@
 
 > 适用对象：代理商后端研发、技术支持、联调人员
 > SDK：`com.sixmm.exchange.sdk:agent`
-> 当前源码版本：`0.1.1`
+> 当前源码版本：`0.2.0`
 > 最低运行环境：Java 8+
 
 ## 1. 文档目的
 
-本文说明代理商如何在 Java 项目中接入 6MM Agent API。Java SDK 会封装签名、时间戳、nonce、金额字符串、HTTP 调用、业务异常和 Webhook 验签，代理商后端只需要按业务流程调用 SDK 方法。
+本文说明代理商如何在 Java 项目中接入 6MM Agent API。Java SDK 会封装签名、时间戳、nonce、金额字符串、法币参考汇率查询、HTTP 调用、业务异常和 Webhook 验签，代理商后端只需要按业务流程调用 SDK 方法。
 
 SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏览器、App、小程序或其他客户端。
 
@@ -23,6 +23,8 @@ SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏�
 | 查询订单列表 | `listOrders` | 分页查询划转订单 |
 | 查询代理商资金 | `queryAccount` | 查询代理商保证金账户 |
 | 查询用户资产 | `queryUserAssets` | 查询已绑定用户在 6MM 侧资产 |
+| 查询支持法币 | `listSupportedFiatCurrencies` | 查询当前支持换算为 USDT 的法币列表 |
+| 查询参考汇率 | `queryExchangeRates` | 查询全部或指定法币兑 USDT 的日级参考比例 |
 | 直接跳转入口 | `createEntryUrl` | 生成一次性 SSO 跳转链接 |
 | 内嵌交易 token | `createEmbedToken` | 给 Trading Widget `tokenProvider` 模式签发短期 token |
 | 服务版本 | `version` | 查询 agent 服务版本信息 |
@@ -57,7 +59,7 @@ SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏�
 <dependency>
     <groupId>com.sixmm.exchange.sdk</groupId>
     <artifactId>agent</artifactId>
-    <version>0.1.1</version>
+    <version>0.2.0</version>
 </dependency>
 ```
 
@@ -68,12 +70,12 @@ SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏�
 ```bash
 git clone https://github.com/6mm-com/agent-java-sdk.git
 cd agent-java-sdk
-git checkout v0.1.1
+git checkout v0.2.0
 mvn install
 ```
 
 说明：GitHub 仓库只提供源码托管。仓库公开后，接入方可以 clone 源码并执行
-`git checkout v0.1.1 && mvn install` 安装到自己的本地 Maven 仓库，但不能仅凭 GitHub 仓库地址在
+`git checkout v0.2.0 && mvn install` 安装到自己的本地 Maven 仓库，但不能仅凭 GitHub 仓库地址在
 `pom.xml` 中直接引用上面的依赖坐标。要让外部项目直接通过 Maven 引入，需要
 额外发布到 Maven 仓库，例如公司私服、Maven Central、GitHub Packages，或接入
 JitPack 这类基于 GitHub 构建的服务。
@@ -143,7 +145,57 @@ agent.sdk.api-secret=${AGENT_API_SECRET}
 
 正常接入时不要自己计算签名，也不要手动设置 `agentCode`、`timestamp`、`nonce`、`sign`。
 
-## 7. 用户 ID 规则
+## 7. 法币参考汇率
+
+SDK 提供两个已签名方法。先查询服务端当前支持的源法币：
+
+```java
+import com.sixmm.agent.model.ListSupportedFiatCurrenciesResponse;
+
+ListSupportedFiatCurrenciesResponse supported = client.listSupportedFiatCurrencies();
+System.out.println(supported.targetCurrency);     // USDT
+System.out.println(supported.sourceCurrencies);  // AUD、BRL、CNY、EUR、USD 等
+```
+
+查询全部支持法币的参考汇率：
+
+```java
+import com.sixmm.agent.model.ExchangeRateItem;
+import com.sixmm.agent.model.QueryExchangeRatesResponse;
+
+QueryExchangeRatesResponse rates = client.queryExchangeRates();
+for (ExchangeRateItem item : rates.rates) {
+    System.out.println("1 " + item.sourceCurrency + " = " + item.rate + " " + item.targetCurrency);
+}
+```
+
+只查询指定法币：
+
+```java
+import com.sixmm.agent.model.QueryExchangeRatesRequest;
+
+QueryExchangeRatesResponse rates = client.queryExchangeRates(
+        QueryExchangeRatesRequest.of("CNY", "EUR", "USD"));
+```
+
+请求工厂会去除首尾空格并转换为大写，再按服务端契约序列化为逗号分隔的 `sourceCurrencies`。不传请求或不传有效币种时查询全部支持法币。
+
+| 响应字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `snapshotVersion` | string | 可用于审计和对账的汇率快照版本 |
+| `provider` | string | 数据提供方，当前为 `ECB` |
+| `sourceDate` | string | 上游汇率数据日期，格式 `yyyy-MM-dd` |
+| `fetchedAt` / `expiresAt` | int64 | Unix 毫秒时间戳 |
+| `pricingPolicy` | string | 当前为 `FIXED_PEG` |
+| `usdtUsdRate` | string | 每 1 USDT 对应的 USD 数量，当前固定为 `1` |
+| `rateType` | string | 当前为 `INDICATIVE_DAILY` |
+| `usage` | string | 当前为 `REFERENCE_ONLY` |
+| `rateMeaning` | string | `1 sourceCurrency = rate USDT` |
+| `rates[].rate` | string | 每 1 单位源法币对应的 USDT 数量 |
+
+这些汇率用于代理商多币种钱包换算后的 USDT 入参参考，不是成交价、锁价或实时 USDT 市场报价。金额计算请使用 `BigDecimal` 和字符串，不要使用 `double` 或 `float`。
+
+## 8. 用户 ID 规则
 
 6MM 对外返回的 `platformUserId` 是平台对外用户 ID，当前为 10 位纯数字字符串，例如：
 
@@ -158,7 +210,7 @@ agent.sdk.api-secret=${AGENT_API_SECRET}
 - 代理商系统自己的用户 ID 使用 `agentUserId`。
 - 划转、查单、Webhook 对账时优先保存 `agentUserId`、`platformUserId`、`agentOrderNo` 的映射关系。
 
-## 8. 绑定用户
+## 9. 绑定用户
 
 绑定用于建立代理商用户和 6MM 平台用户之间的关系。推荐在用户第一次进入交易场景或第一次充值到 6MM 前调用。
 
@@ -176,7 +228,7 @@ System.out.println(resp.bindStatus);
 System.out.println(resp.isSimulatedUser);
 ```
 
-### 8.1 请求字段
+### 9.1 请求字段
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
@@ -184,7 +236,7 @@ System.out.println(resp.isSimulatedUser);
 | `username` | string | 否 | 代理商侧用户展示名称；传入后 6MM 会写入 `users.nick_name` |
 | `ext` | string | 否 | 扩展信息，建议传 JSON 字符串 |
 
-### 8.2 响应字段
+### 9.2 响应字段
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -192,13 +244,13 @@ System.out.println(resp.isSimulatedUser);
 | `bindStatus` | string | 绑定状态，通常为 `BOUND` |
 | `isSimulatedUser` | boolean | 是否模拟用户 |
 
-## 9. 固定金额划转
+## 10. 固定金额划转
 
 固定金额划转使用 `transfer`。`Direction.IN` 表示从代理商侧转入 6MM，`Direction.OUT` 表示从 6MM 转出到代理商侧。
 
 金额必须使用字符串或 `BigDecimal`，不要使用 `double` 或 `float`。
 
-### 9.1 使用 agentUserId 划转
+### 10.1 使用 agentUserId 划转
 
 ```java
 import com.sixmm.agent.model.Direction;
@@ -218,7 +270,7 @@ System.out.println(resp.agentUserId);
 System.out.println(resp.platformUserId);
 ```
 
-### 9.2 使用 platformUserId 划转
+### 10.2 使用 platformUserId 划转
 
 ```java
 TransferResponse resp = client.transfer(TransferRequest.fixedByPlatformUserId(
@@ -229,7 +281,7 @@ TransferResponse resp = client.transfer(TransferRequest.fixedByPlatformUserId(
         "5.00"));
 ```
 
-### 9.3 同时传 agentUserId 和 platformUserId
+### 10.3 同时传 agentUserId 和 platformUserId
 
 如果同时传两个 ID，服务端会校验它们必须指向同一个绑定用户。
 
@@ -241,7 +293,7 @@ TransferRequest req = TransferRequest
 TransferResponse resp = client.transfer(req);
 ```
 
-### 9.4 请求字段
+### 10.4 请求字段
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
@@ -252,7 +304,7 @@ TransferResponse resp = client.transfer(req);
 | `currency` | string | 否 | 空值时使用 `defaultCurrency` |
 | `amount` | string | 是 | 金额字符串 |
 
-### 9.5 响应字段
+### 10.5 响应字段
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -261,7 +313,7 @@ TransferResponse resp = client.transfer(req);
 | `agentUserId` | string | 代理商用户 ID |
 | `platformUserId` | string | 6MM 对外用户 ID |
 
-## 10. 订单确认与幂等
+## 11. 订单确认与幂等
 
 SDK 调用 `transfer` 后，agent 服务会在主路径同步调用交易核心。大多数情况下，接口返回时已经拿到交易核心的同步结果。
 
@@ -277,7 +329,7 @@ SDK 调用 `transfer` 后，agent 服务会在主路径同步调用交易核心�
 - 如果 HTTP 超时或网络异常，优先用相同 `agentOrderNo` 查询订单，不要直接生成新订单号重复提交。
 - Webhook 可能因重试被推送多次，代理商侧必须按幂等键去重。
 
-## 11. 一键全部划出
+## 12. 一键全部划出
 
 一键全部划出用于把用户在 6MM 侧可划出的余额全部转回代理商侧。
 
@@ -301,7 +353,7 @@ TransferAllOutResponse resp = client.transferAllOut(
 
 响应里的 `amount` 是实际划出金额。
 
-## 12. 冲正
+## 13. 冲正
 
 冲正用于对已成功的划转订单发起反向处理。常见场景包括代理商本地订单异常、人工对账需要回滚等。
 
@@ -331,7 +383,7 @@ System.out.println(resp.orderStatus);
 - 冲正也应按订单号做幂等。
 - 原订单被冲正后，Webhook 可能推送原订单的 `REVERSED` 终态。
 
-## 13. 查单
+## 14. 查单
 
 ```java
 import com.sixmm.agent.model.OrderQueryType;
@@ -367,7 +419,7 @@ System.out.println(resp.failReason);
 | `createdAt` | string | 创建时间 |
 | `completedAt` | string | 完成时间 |
 
-## 14. 订单列表
+## 15. 订单列表
 
 ```java
 import com.sixmm.agent.model.ListOrdersRequest;
@@ -391,7 +443,7 @@ resp.orders.forEach(order -> System.out.println(order.orderNo));
 - `pageSize` 建议不超过 100。
 - 对账任务建议按时间窗口分页拉取，并以 `orderNo` 去重。
 
-## 15. 查询代理商资金
+## 16. 查询代理商资金
 
 ```java
 import com.sixmm.agent.model.QueryAccountRequest;
@@ -409,7 +461,7 @@ resp.assets.forEach(asset -> {
 
 `currency` 为空时，SDK 会自动使用 `defaultCurrency`。
 
-## 16. 查询用户资产
+## 17. 查询用户资产
 
 ```java
 import com.sixmm.agent.model.QueryUserAssetsRequest;
@@ -435,7 +487,7 @@ System.out.println(resp.version);
 | `version` | int64 | 资产版本号 |
 | `isSimulatedUser` | boolean | 是否模拟用户 |
 
-## 17. 直接跳转入口
+## 18. 直接跳转入口
 
 直接跳转入口适合用户从代理商站点点击按钮后，打开 6MM 前端并自动登录。
 
@@ -466,7 +518,7 @@ System.out.println(resp.expireAt);
 - 入口链接过期或已使用后，用户需要重新从代理商站点发起。
 - `returnUrl` 不允许使用 `javascript:`、相对路径或带 userinfo 的 URL。
 
-## 18. 内嵌交易 token
+## 19. 内嵌交易 token
 
 内嵌交易适用于 Trading Widget SDK 的 `partner-token + tokenProvider` 模式。浏览器端调用代理商自己的后端，代理商后端再调用 Java SDK 创建 `embedToken`。
 
@@ -505,7 +557,7 @@ public EmbedTokenView createEmbedToken(@RequestBody EmbedTokenRequest request,
 }
 ```
 
-## 19. Webhook 验签
+## 20. Webhook 验签
 
 6MM 在划转订单到达终态时会向代理商配置的 `webhookUrl` 推送通知。SDK 提供验签和幂等键辅助方法。
 
@@ -547,7 +599,7 @@ timestamp + nonce + rawBody
 - 按 `WebhookVerifier.idempotencyKey(rawBody)` 做幂等。
 - 返回 HTTP 2xx 表示处理成功；非 2xx 会触发 6MM 重试。
 
-## 20. 异常处理
+## 21. 异常处理
 
 SDK 异常分为两类：
 
@@ -576,9 +628,9 @@ try {
 }
 ```
 
-## 21. 推荐业务流程
+## 22. 推荐业务流程
 
-### 21.1 用户首次进入交易
+### 22.1 用户首次进入交易
 
 ```text
 1. 用户登录代理商站点
@@ -589,7 +641,7 @@ try {
 6. 内嵌交易：前端 Trading Widget 触发 tokenProvider，后端调用 createEmbedToken
 ```
 
-### 21.2 用户充值到 6MM
+### 22.2 用户充值到 6MM
 
 ```text
 1. 代理商生成唯一 agentOrderNo
@@ -599,7 +651,7 @@ try {
 5. 如果返回 FAILED 或抛 AgentApiException，按失败处理
 ```
 
-### 21.3 用户从 6MM 提回代理商
+### 22.3 用户从 6MM 提回代理商
 
 ```text
 1. 代理商生成唯一 agentOrderNo
@@ -608,7 +660,7 @@ try {
 4. 按 orderStatus、Webhook、queryOrder 确认最终状态
 ```
 
-## 22. 日志与排查建议
+## 23. 日志与排查建议
 
 建议代理商后端日志至少记录：
 
@@ -624,7 +676,7 @@ try {
 
 不要记录完整 `apiSecret`、完整签名、用户敏感资料。
 
-## 23. 联调检查清单
+## 24. 联调检查清单
 
 | 检查项 | 期望结果 |
 | --- | --- |
@@ -637,8 +689,10 @@ try {
 | Webhook 幂等 | 同一通知重复投递不会重复入账 |
 | `createEntryUrl` | 浏览器打开后能进入 6MM 页面 |
 | `createEmbedToken` | Trading Widget 能完成内嵌登录 |
+| `listSupportedFiatCurrencies` | 返回非空源法币列表，目标币种为 `USDT` |
+| `queryExchangeRates` | 返回 `REFERENCE_ONLY`、有效快照版本和所请求币种 |
 
-## 24. 常见问题
+## 25. 常见问题
 
 ### Q1：`platformUserId` 可以用 long 保存吗？
 
@@ -664,7 +718,7 @@ try {
 
 不可以。浏览器不能持有 `apiSecret`。正确方式是浏览器请求代理商后端，代理商后端调用 `createEmbedToken`。
 
-## 25. 本地测试命令
+## 26. 本地测试命令
 
 在 SDK 仓库根目录运行：
 

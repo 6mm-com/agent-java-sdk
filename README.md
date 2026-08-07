@@ -4,8 +4,8 @@ Java SDK for the 6MM Agent REST API.
 
 This SDK is intended for partner backend services. It wraps request signing,
 timestamp and nonce generation, amount formatting, HTTP calls, business
-exceptions, entry URL creation, Trading Widget embed token creation, and
-webhook signature verification.
+exceptions, FX reference-rate queries, entry URL creation, Trading Widget
+embed token creation, and webhook signature verification.
 
 Chinese documentation: [README.zh-CN.md](README.zh-CN.md)
 
@@ -26,6 +26,8 @@ Chinese documentation: [README.zh-CN.md](README.zh-CN.md)
 | List orders | `listOrders` | Page through transfer orders for reconciliation |
 | Query partner account | `queryAccount` | Query the partner margin or funding account |
 | Query user assets | `queryUserAssets` | Query a bound user's 6MM-side assets |
+| List supported fiat currencies | `listSupportedFiatCurrencies` | List fiat currencies currently convertible to USDT |
+| Query FX reference rates | `queryExchangeRates` | Query daily fiat-to-USDT reference ratios for all or selected currencies |
 | Direct entry URL | `createEntryUrl` | Create a one-time SSO URL for redirect mode |
 | Embed token | `createEmbedToken` | Create a short-lived token for Trading Widget `tokenProvider` mode |
 | Service version | `version` | Query Agent service version information |
@@ -60,7 +62,7 @@ Current source coordinates:
 <dependency>
     <groupId>com.sixmm.exchange.sdk</groupId>
     <artifactId>agent</artifactId>
-    <version>0.1.1</version>
+    <version>0.2.0</version>
 </dependency>
 ```
 
@@ -71,12 +73,12 @@ repository first:
 ```bash
 git clone https://github.com/6mm-com/agent-java-sdk.git
 cd agent-java-sdk
-git checkout v0.1.1
+git checkout v0.2.0
 mvn install
 ```
 
 After local installation, your business project can resolve
-`com.sixmm.exchange.sdk:agent:0.1.1` from the local Maven repository.
+`com.sixmm.exchange.sdk:agent:0.2.0` from the local Maven repository.
 
 For team builds and test environments, publish the SDK to a Maven repository
 such as Nexus, Artifactory, GitHub Packages, Maven Central, or use a GitHub
@@ -153,6 +155,62 @@ Signing rules:
 
 Normal business code should not calculate signatures or manually set
 `agentCode`, `timestamp`, `nonce`, or `sign`.
+
+## FX Reference Rates
+
+Both FX methods use the normal signed Agent API flow. Start by discovering the
+currently supported source currencies:
+
+```java
+import com.sixmm.agent.model.ListSupportedFiatCurrenciesResponse;
+
+ListSupportedFiatCurrenciesResponse supported = client.listSupportedFiatCurrencies();
+System.out.println(supported.targetCurrency);     // USDT
+System.out.println(supported.sourceCurrencies);  // AUD, BRL, CNY, EUR, USD, ...
+```
+
+Query all supported fiat-to-USDT reference rates:
+
+```java
+import com.sixmm.agent.model.ExchangeRateItem;
+import com.sixmm.agent.model.QueryExchangeRatesResponse;
+
+QueryExchangeRatesResponse rates = client.queryExchangeRates();
+for (ExchangeRateItem item : rates.rates) {
+    System.out.println("1 " + item.sourceCurrency + " = " + item.rate + " " + item.targetCurrency);
+}
+```
+
+Query selected currencies:
+
+```java
+import com.sixmm.agent.model.QueryExchangeRatesRequest;
+
+QueryExchangeRatesResponse rates = client.queryExchangeRates(
+        QueryExchangeRatesRequest.of("CNY", "EUR", "USD"));
+```
+
+The request factory trims and uppercases currency codes and serializes them as
+the comma-separated `sourceCurrencies` value required by the API. Omitting the
+request or all effective currency values queries every supported currency.
+
+| Response field | Type | Description |
+| --- | --- | --- |
+| `snapshotVersion` | string | Stable snapshot version for audit and reconciliation |
+| `provider` | string | Upstream provider, currently `ECB` |
+| `sourceDate` | string | Upstream observation date in `yyyy-MM-dd` format |
+| `fetchedAt` / `expiresAt` | int64 | Unix timestamps in milliseconds |
+| `pricingPolicy` | string | Currently `FIXED_PEG` |
+| `usdtUsdRate` | string | USD amount per 1 USDT, currently fixed at `1` |
+| `rateType` | string | Currently `INDICATIVE_DAILY` |
+| `usage` | string | Currently `REFERENCE_ONLY` |
+| `rateMeaning` | string | `1 sourceCurrency = rate USDT` |
+| `rates[].rate` | string | USDT amount corresponding to one unit of source fiat |
+
+These values are references for a partner multi-currency wallet to calculate
+the USDT amount sent to 6MM. They are not executable prices, locked quotes, or
+real-time USDT market prices. Use `BigDecimal` and strings for amount
+calculations; do not use `double` or `float`.
 
 ## User ID Rules
 
@@ -678,6 +736,8 @@ Do not log full `apiSecret`, full signatures, or sensitive user information.
 | Webhook idempotency | Duplicate webhook delivery does not create duplicate accounting |
 | `createEntryUrl` | Browser can open and enter the 6MM frontend |
 | `createEmbedToken` | Trading Widget can complete embedded authentication |
+| `listSupportedFiatCurrencies` | Returns a non-empty source list with `USDT` as target |
+| `queryExchangeRates` | Returns `REFERENCE_ONLY`, a valid snapshot, and requested currencies |
 
 ## FAQ
 

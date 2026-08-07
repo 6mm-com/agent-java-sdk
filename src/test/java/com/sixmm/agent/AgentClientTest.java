@@ -13,6 +13,9 @@ import com.sixmm.agent.model.CreateEmbedTokenRequest;
 import com.sixmm.agent.model.CreateEmbedTokenResponse;
 import com.sixmm.agent.model.CreateEntryUrlRequest;
 import com.sixmm.agent.model.CreateEntryUrlResponse;
+import com.sixmm.agent.model.ListSupportedFiatCurrenciesResponse;
+import com.sixmm.agent.model.QueryExchangeRatesRequest;
+import com.sixmm.agent.model.QueryExchangeRatesResponse;
 import com.sixmm.agent.model.QueryOrderRequest;
 import com.sixmm.agent.model.QueryUserAssetsRequest;
 import com.sixmm.agent.model.QueryUserAssetsResponse;
@@ -222,6 +225,88 @@ class AgentClientTest {
         signParams.put("timestamp", 1713024000L);
         signParams.put("nonce", "nonce-1");
         assertEquals(AgentSigner.signParams(signParams, "secret"), body.get("sign").asText());
+    }
+
+    @Test
+    void listSupportedFiatCurrenciesUsesSignedAgentEndpoint() throws Exception {
+        CapturingTransport transport = new CapturingTransport(200,
+                "{\"code\":0,\"message\":\"success\",\"targetCurrency\":\"USDT\",\"sourceCurrencies\":[\"AUD\",\"CNY\",\"USD\"]}");
+        AgentClient client = newClient(transport);
+
+        ListSupportedFiatCurrenciesResponse response = client.listSupportedFiatCurrencies();
+
+        assertEquals("USDT", response.targetCurrency);
+        assertEquals(3, response.sourceCurrencies.size());
+        assertEquals("AUD", response.sourceCurrencies.get(0));
+        assertEquals("POST", transport.lastMethod);
+        assertEquals("http://agent.test/v1/agent/list-supported-fiat-currencies", transport.lastUrl);
+
+        JsonNode body = MAPPER.readTree(transport.lastBody);
+        assertEquals("AGENT001", body.get("agentCode").asText());
+        assertEquals(1713024000L, body.get("timestamp").asLong());
+        assertEquals("nonce-1", body.get("nonce").asText());
+        assertTrue(!body.has("sourceCurrencies"));
+
+        Map<String, Object> signParams = new LinkedHashMap<String, Object>();
+        signParams.put("agentCode", "AGENT001");
+        signParams.put("timestamp", 1713024000L);
+        signParams.put("nonce", "nonce-1");
+        assertEquals(AgentSigner.signParams(signParams, "secret"), body.get("sign").asText());
+    }
+
+    @Test
+    void queryExchangeRatesSerializesCurrenciesAndHydratesReferenceMetadata() throws Exception {
+        CapturingTransport transport = new CapturingTransport(200,
+                "{\"code\":0,\"message\":\"success\",\"snapshotVersion\":\"ecb-20260806-fixed-test\","
+                        + "\"provider\":\"ECB\",\"sourceDate\":\"2026-08-06\",\"fetchedAt\":1786092926728,"
+                        + "\"expiresAt\":1786579200000,\"pricingPolicy\":\"FIXED_PEG\","
+                        + "\"usdtUsdRate\":\"1.000000000000000000\",\"rateType\":\"INDICATIVE_DAILY\","
+                        + "\"usage\":\"REFERENCE_ONLY\",\"rateMeaning\":\"1 sourceCurrency = rate USDT\","
+                        + "\"rates\":[{\"sourceCurrency\":\"CNY\",\"targetCurrency\":\"USDT\","
+                        + "\"rate\":\"0.148168117281573339\"}]}");
+        AgentClient client = newClient(transport);
+
+        QueryExchangeRatesResponse response = client.queryExchangeRates(
+                QueryExchangeRatesRequest.of(" cny ", "EUR", "", null, "usd"));
+
+        assertEquals("ecb-20260806-fixed-test", response.snapshotVersion);
+        assertEquals("ECB", response.provider);
+        assertEquals("2026-08-06", response.sourceDate);
+        assertEquals(1786092926728L, response.fetchedAt);
+        assertEquals(1786579200000L, response.expiresAt);
+        assertEquals("FIXED_PEG", response.pricingPolicy);
+        assertEquals("1.000000000000000000", response.usdtUsdRate);
+        assertEquals("INDICATIVE_DAILY", response.rateType);
+        assertEquals("REFERENCE_ONLY", response.usage);
+        assertEquals("1 sourceCurrency = rate USDT", response.rateMeaning);
+        assertEquals(1, response.rates.size());
+        assertEquals("CNY", response.rates.get(0).sourceCurrency);
+        assertEquals("USDT", response.rates.get(0).targetCurrency);
+        assertEquals("0.148168117281573339", response.rates.get(0).rate);
+        assertEquals("http://agent.test/v1/agent/query-exchange-rates", transport.lastUrl);
+
+        JsonNode body = MAPPER.readTree(transport.lastBody);
+        assertEquals("CNY,EUR,USD", body.get("sourceCurrencies").asText());
+
+        Map<String, Object> signParams = new LinkedHashMap<String, Object>();
+        signParams.put("sourceCurrencies", "CNY,EUR,USD");
+        signParams.put("agentCode", "AGENT001");
+        signParams.put("timestamp", 1713024000L);
+        signParams.put("nonce", "nonce-1");
+        assertEquals(AgentSigner.signParams(signParams, "secret"), body.get("sign").asText());
+    }
+
+    @Test
+    void queryExchangeRatesWithoutRequestOmitsCurrencyFilter() throws Exception {
+        CapturingTransport transport = new CapturingTransport(200,
+                "{\"code\":0,\"message\":\"success\",\"rates\":[]}");
+        AgentClient client = newClient(transport);
+
+        client.queryExchangeRates();
+
+        JsonNode body = MAPPER.readTree(transport.lastBody);
+        assertTrue(!body.has("sourceCurrencies"));
+        assertEquals("http://agent.test/v1/agent/query-exchange-rates", transport.lastUrl);
     }
 
     private AgentClient newClient(CapturingTransport transport) {

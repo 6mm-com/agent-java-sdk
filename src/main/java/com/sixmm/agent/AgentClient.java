@@ -9,10 +9,13 @@ import com.sixmm.agent.model.CreateEmbedTokenRequest;
 import com.sixmm.agent.model.CreateEmbedTokenResponse;
 import com.sixmm.agent.model.CreateEntryUrlRequest;
 import com.sixmm.agent.model.CreateEntryUrlResponse;
+import com.sixmm.agent.model.ListSupportedFiatCurrenciesResponse;
 import com.sixmm.agent.model.ListOrdersRequest;
 import com.sixmm.agent.model.ListOrdersResponse;
 import com.sixmm.agent.model.QueryAccountRequest;
 import com.sixmm.agent.model.QueryAccountResponse;
+import com.sixmm.agent.model.QueryExchangeRatesRequest;
+import com.sixmm.agent.model.QueryExchangeRatesResponse;
 import com.sixmm.agent.model.QueryOrderRequest;
 import com.sixmm.agent.model.QueryOrderResponse;
 import com.sixmm.agent.model.QueryUserAssetsRequest;
@@ -83,6 +86,18 @@ public class AgentClient {
 
     public CreateEmbedTokenResponse createEmbedToken(CreateEmbedTokenRequest request) {
         return postSigned("/v1/agent/create-embed-token", request, CreateEmbedTokenResponse.class);
+    }
+
+    public ListSupportedFiatCurrenciesResponse listSupportedFiatCurrencies() {
+        return postSigned("/v1/agent/list-supported-fiat-currencies", null, ListSupportedFiatCurrenciesResponse.class);
+    }
+
+    public QueryExchangeRatesResponse queryExchangeRates() {
+        return queryExchangeRates(null);
+    }
+
+    public QueryExchangeRatesResponse queryExchangeRates(QueryExchangeRatesRequest request) {
+        return postSigned("/v1/agent/query-exchange-rates", request, QueryExchangeRatesResponse.class);
     }
 
     public VersionResponse version() {
