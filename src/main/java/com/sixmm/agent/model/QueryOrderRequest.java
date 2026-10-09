@@ -1,6 +1,14 @@
 package com.sixmm.agent.model;
 
 public class QueryOrderRequest {
+    // 省略时兼容正式环境；只有显式 SIMULATED 才切换。
+    public String environment;
+
+    public QueryOrderRequest withEnvironment(String value) {
+        this.environment = ExecutionEnvironment.require(value);
+        return this;
+    }
+
     public String orderNo;
     public String orderType;
 

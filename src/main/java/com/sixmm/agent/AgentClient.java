@@ -3,6 +3,13 @@ package com.sixmm.agent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sixmm.agent.model.AgentResponse;
+import com.sixmm.agent.model.CurrentPerpetualOrdersRequest;
+import com.sixmm.agent.model.PerpetualOrderHistoryRequest;
+import com.sixmm.agent.model.PerpetualTradesRequest;
+import com.sixmm.agent.model.CurrentPerpetualPositionsRequest;
+import com.sixmm.agent.model.PerpetualPositionHistoryRequest;
+import com.sixmm.agent.model.PerpetualLedgerRequest;
+import com.sixmm.agent.model.PerpetualResponse;
 import com.sixmm.agent.model.BindRequest;
 import com.sixmm.agent.model.BindResponse;
 import com.sixmm.agent.model.CreateEmbedTokenRequest;
@@ -27,6 +34,9 @@ import com.sixmm.agent.model.TransferAllOutResponse;
 import com.sixmm.agent.model.TransferRequest;
 import com.sixmm.agent.model.TransferResponse;
 import com.sixmm.agent.model.VersionResponse;
+import com.sixmm.agent.model.WalletTransferRequest;
+import com.sixmm.agent.model.WalletTransferQueryRequest;
+import com.sixmm.agent.model.WalletTransferResponse;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
@@ -35,6 +45,14 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class AgentClient {
+    public WalletTransferResponse walletTransfer(WalletTransferRequest request) {
+        return postSigned("/v1/agent/wallet-transfer", request, WalletTransferResponse.class);
+    }
+
+    public WalletTransferResponse queryWalletTransfer(WalletTransferQueryRequest request) {
+        return postSigned("/v1/agent/wallet-transfer-status", request, WalletTransferResponse.class);
+    }
+
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final TypeReference<LinkedHashMap<String, Object>> MAP_TYPE = new TypeReference<LinkedHashMap<String, Object>>() {
     };
@@ -98,6 +116,44 @@ public class AgentClient {
 
     public QueryExchangeRatesResponse queryExchangeRates(QueryExchangeRatesRequest request) {
         return postSigned("/v1/agent/query-exchange-rates", request, QueryExchangeRatesResponse.class);
+    }
+
+    public PerpetualResponse listCurrentPerpetualOrders(CurrentPerpetualOrdersRequest request) {
+        return postPerpetual("orders/current", request);
+    }
+
+    public PerpetualResponse listPerpetualOrderHistory(PerpetualOrderHistoryRequest request) {
+        return postPerpetual("orders/history", request);
+    }
+
+    public PerpetualResponse listPerpetualTrades(PerpetualTradesRequest request) {
+        return postPerpetual("trades", request);
+    }
+
+    public PerpetualResponse listCurrentPerpetualPositions(CurrentPerpetualPositionsRequest request) {
+        return postPerpetual("positions/current", request);
+    }
+
+    public PerpetualResponse listPerpetualPositionHistory(PerpetualPositionHistoryRequest request) {
+        return postPerpetual("positions/history", request);
+    }
+
+    public PerpetualResponse listPerpetualLedger(PerpetualLedgerRequest request) {
+        return postPerpetual("account/ledger", request);
+    }
+
+    private PerpetualResponse postPerpetual(String resource, Object request) {
+        if (request == null) {
+            throw new AgentSdkException("perpetual request is required");
+        }
+        Map<String, Object> body;
+        try {
+            body = requestToMap(request);
+        } catch (IllegalArgumentException e) {
+            throw new AgentSdkException("invalid perpetual request types", e);
+        }
+        PerpetualProtocol.validateRequest(resource, body);
+        return postSigned("/v1/agent/perpetual/" + resource, body, PerpetualResponse.class);
     }
 
     public VersionResponse version() {
@@ -191,6 +247,9 @@ public class AgentClient {
 
     private <T> T fromJson(String body, Class<T> responseType) {
         try {
+            if (responseType == PerpetualResponse.class) {
+                return responseType.cast(PerpetualProtocol.readResponse(body));
+            }
             return MAPPER.readValue(body, responseType);
         } catch (Exception e) {
             throw new AgentSdkException("failed to parse agent api response", e);

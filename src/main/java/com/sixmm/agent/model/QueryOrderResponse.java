@@ -1,6 +1,8 @@
 package com.sixmm.agent.model;
 
 public class QueryOrderResponse extends AgentResponse {
+    public String environment;
+
     public String orderType;
     public String orderNo;
     public String status;

@@ -1,6 +1,11 @@
 package com.sixmm.agent.model;
 
 public class ListOrdersRequest {
+    public String environment;
+    public ListOrdersRequest withEnvironment(String value) {
+        this.environment = ExecutionEnvironment.require(value);
+        return this;
+    }
     public String orderType;
     public String status;
     public String startTime;

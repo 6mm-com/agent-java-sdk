@@ -1,5 +1,7 @@
 package com.sixmm.agent;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
@@ -13,6 +15,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 public final class AgentSigner {
     private static final char[] HEX = "0123456789abcdef".toCharArray();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String HMAC_SHA256 = "HmacSHA256";
 
     private AgentSigner() {
@@ -59,6 +62,13 @@ public final class AgentSigner {
         }
         if (value instanceof BigDecimal) {
             return ((BigDecimal) value).toPlainString();
+        }
+        if (value instanceof List<?> || value instanceof String[]) {
+            try {
+                return MAPPER.writeValueAsString(value);
+            } catch (JsonProcessingException e) {
+                throw new AgentSdkException("failed to serialize signature array", e);
+            }
         }
         return String.valueOf(value);
     }

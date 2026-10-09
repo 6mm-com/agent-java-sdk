@@ -62,7 +62,7 @@ Current source coordinates:
 <dependency>
     <groupId>com.sixmm.exchange.sdk</groupId>
     <artifactId>agent</artifactId>
-    <version>0.2.0</version>
+    <version>0.3.0</version>
 </dependency>
 ```
 
@@ -73,12 +73,12 @@ repository first:
 ```bash
 git clone https://github.com/6mm-com/agent-java-sdk.git
 cd agent-java-sdk
-git checkout v0.2.0
+git checkout codex/perpetual-release
 mvn install
 ```
 
 After local installation, your business project can resolve
-`com.sixmm.exchange.sdk:agent:0.2.0` from the local Maven repository.
+`com.sixmm.exchange.sdk:agent:0.3.0` from the local Maven repository.
 
 For team builds and test environments, publish the SDK to a Maven repository
 such as Nexus, Artifactory, GitHub Packages, Maven Central, or use a GitHub
@@ -786,3 +786,43 @@ If a business project uses local installation:
 ```bash
 mvn clean install
 ```
+
+## Perpetual queries (0.3.0 candidate)
+
+These methods require the corresponding Agent perpetual-query feature to be deployed and enabled by the operator. This candidate is not confirmation that production has enabled the feature. All six methods use signed POST requests under `/v1/agent/perpetual`.
+
+| Method | Route | Player selection |
+| --- | --- | --- |
+| `listCurrentPerpetualOrders` | `/orders/current` | Optional for NORMAL; required for CONDITIONAL |
+| `listPerpetualOrderHistory` | `/orders/history` | Optional for NORMAL; required for CONDITIONAL |
+| `listPerpetualTrades` | `/trades` | Required |
+| `listCurrentPerpetualPositions` | `/positions/current` | Optional |
+| `listPerpetualPositionHistory` | `/positions/history` | Optional |
+| `listPerpetualLedger` | `/account/ledger` | Optional |
+
+`platformUserIds` contains 1–100 unique public platform user IDs (10-digit strings), never internal user IDs. Omitting this field on supported routes selects the authenticated partner's direct players; an explicit empty array is invalid. Order queries require `orderCategory` (`NORMAL` or `CONDITIONAL`). The partner/agent ID is derived from authentication, not supplied as a filter.
+
+Historical filters use Unix milliseconds and `[startTime, endTime)`: order creation time, trade execution time, position closing time, or ledger record creation time respectively. Current orders/positions do not accept historical time filters. PG order timestamps describe record creation/update, and are not guaranteed to equal trading-core event times. Default page size is 500, maximum 1000. Keep filters unchanged and pass `nextCursor` until `hasMore` is false, even if an intermediate page is empty. Pagination does not provide a cross-page snapshot or a guaranteed incremental event feed.
+
+```java
+import com.sixmm.agent.model.PerpetualTradesRequest;
+import com.sixmm.agent.model.PerpetualResponse;
+import java.util.Arrays;
+
+PerpetualTradesRequest request = new PerpetualTradesRequest();
+request.platformUserIds = Arrays.asList("1000000042", "1000000043");
+request.limit = 500;
+PerpetualResponse page;
+do {
+    page = client.listPerpetualTrades(request);
+    // 处理成功返回的明细，并按业务需要持久化。
+    request.cursor = page.data.nextCursor;
+    if (Boolean.TRUE.equals(page.data.hasMore)) Thread.sleep(600);
+} while (Boolean.TRUE.equals(page.data.hasMore));
+```
+
+The SDK signs arrays as compact JSON and retains record IDs/amounts as strings. Current NORMAL orders omit leverage and margin mode; these are trading-pair settings. Ledger records use their individual detail ID and may share a ledger ID. Missing fields are not zero values.
+
+All six routes share the partner's rate limit: default 2 requests/second, burst 4, plus concurrency protection. Business error `6905` indicates frequency limiting; `6904` indicates unavailability/concurrency protection. SDK calls throw `AgentApiException` and do not retry automatically. On an explicit bounded retry, keep the same cursor/filters; calling the SDK again generates a fresh timestamp, nonce and signature. Coordinate throttling across your processes; per-loop sleeps alone do not coordinate concurrent callers.
+
+Funding/transfer environment selectors remain available on their existing methods. Do not add `environment` to perpetual-query requests: it is not part of these six contracts. Availability, source retention and asynchronous ingestion determine which history can be returned; a successful page does not prove complete financial reconciliation.

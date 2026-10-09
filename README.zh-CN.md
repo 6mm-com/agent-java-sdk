@@ -2,7 +2,7 @@
 
 > 适用对象：代理商后端研发、技术支持、联调人员
 > SDK：`com.sixmm.exchange.sdk:agent`
-> 当前源码版本：`0.2.0`
+> 当前源码版本：`0.3.0`
 > 最低运行环境：Java 8+
 
 ## 1. 文档目的
@@ -59,7 +59,7 @@ SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏�
 <dependency>
     <groupId>com.sixmm.exchange.sdk</groupId>
     <artifactId>agent</artifactId>
-    <version>0.2.0</version>
+    <version>0.3.0</version>
 </dependency>
 ```
 
@@ -70,12 +70,12 @@ SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏�
 ```bash
 git clone https://github.com/6mm-com/agent-java-sdk.git
 cd agent-java-sdk
-git checkout v0.2.0
+git checkout codex/perpetual-release
 mvn install
 ```
 
 说明：GitHub 仓库只提供源码托管。仓库公开后，接入方可以 clone 源码并执行
-`git checkout v0.2.0 && mvn install` 安装到自己的本地 Maven 仓库，但不能仅凭 GitHub 仓库地址在
+`git checkout codex/perpetual-release && mvn install` 安装到自己的本地 Maven 仓库，但不能仅凭 GitHub 仓库地址在
 `pom.xml` 中直接引用上面的依赖坐标。要让外部项目直接通过 Maven 引入，需要
 额外发布到 Maven 仓库，例如公司私服、Maven Central、GitHub Packages，或接入
 JitPack 这类基于 GitHub 构建的服务。
@@ -732,3 +732,26 @@ mvn package
 ```bash
 mvn clean install
 ```
+
+## 永续批量查询（0.3.0 候选）
+
+使用前必须由运营方部署并启用对应 Agent 查询能力；本候选不表示正式服已经开放。六类方法均为 `/v1/agent/perpetual` 下的签名 POST：
+
+| 方法 | 后缀 | 玩家参数 |
+| --- | --- | --- |
+| `listCurrentPerpetualOrders` | `/orders/current` | NORMAL 可省略，CONDITIONAL 必传 |
+| `listPerpetualOrderHistory` | `/orders/history` | NORMAL 可省略，CONDITIONAL 必传 |
+| `listPerpetualTrades` | `/trades` | 必传 |
+| `listCurrentPerpetualPositions` | `/positions/current` | 可省略 |
+| `listPerpetualPositionHistory` | `/positions/history` | 可省略 |
+| `listPerpetualLedger` | `/account/ledger` | 可省略 |
+
+`platformUserIds` 传 1～100 个不重复的十位公开平台用户 ID 字符串，不能传内部 user_id。在支持的接口省略时查询签名商户的全部直属玩家；显式空数组无效。委托接口必传 `orderCategory=NORMAL/CONDITIONAL`，商户归属由鉴权决定，不接受自行指定 Agent ID。
+
+历史时间为 Unix 毫秒半开区间 `[startTime,endTime)`，分别按订单创建、成交、平仓、账变记录创建时间筛选；当前委托/仓位不接受历史时间。PG 当前普通委托的时间是记录创建/更新时间，不保证等于 TK 事件时间。limit 默认500、最大1000，保持筛选条件不变，带 nextCursor 翻页直至 hasMore=false；中间空页也要按 hasMore 继续。不承诺跨页快照或完整增量同步。
+
+SDK 自动按紧凑 JSON 数组签名，业务ID与金额保留字符串。当前普通委托省略杠杆、保证金模式；缺省字段不应解释为0。资金账变按明细ID返回，同一流水号可以有多条明细。
+
+六接口共享商户频率额度，默认每秒2次、突发4次，并受并发保护。6905表示频率限制，6904表示暂不可用或并发保护；错误通过 AgentApiException 透传，SDK不会自动重试。业务层决定有限退避后，可保留原游标/筛选条件重新调用SDK，SDK生成新的timestamp/nonce/sign；多个进程也要共享节流策略。
+
+英文README提供成交分页示例。原资金接口的environment参数保留；这六类查询不接受environment。历史留存及异步入库会影响结果，不应将单页成功等同于完整对账。

@@ -1,0 +1,72 @@
+package com.sixmm.agent.model;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+// 只声明公开业务字段；金额和业务标识保留字符串精度。
+@JsonIgnoreProperties(ignoreUnknown = true)
+public final class PerpetualData {
+    public String symbol;
+    public String orderId;
+    public String conditionId;
+    public String generatedOrderId;
+    public String clientOrderId;
+    public String fillId;
+    public String tradeId;
+    public String positionId;
+    public String ledgerId;
+    public String orderType;
+    public String orderCategory;
+    public String side;
+    public String positionSide;
+    public String status;
+    public String triggerStatus;
+    public String timeInForce;
+    public String price;
+    public String quantity;
+    public String filledQuantity;
+    public String remainingQuantity;
+    public String avgFilledPrice;
+    public String triggerPrice;
+    public String triggerType;
+    public String workingType;
+    public Boolean reduceOnly;
+    public Boolean closePosition;
+    public Boolean makerOnly;
+    public String roleType;
+    public String tradeValue;
+    public String handlingFee;
+    public String realizedPnl;
+    public String entryPrice;
+    public String closePrice;
+    public Integer leverage;
+    public String marginMode;
+    public String margin;
+    public String maxQuantity;
+    public String closeQuantity;
+    public String pnl;
+    public String roe;
+    public String fundingFeeAccum;
+    public String closeReason;
+    public String assetType;
+    public String changeType;
+    public String amount;
+    public String walletBalanceBefore;
+    public String walletBalanceAfter;
+    public String frozenBalanceBefore;
+    public String frozenBalanceAfter;
+    public String referenceId;
+    public Long createdAt;
+    public Long updatedAt;
+    public Long tradedAt;
+    public Long openedAt;
+    public Long closedAt;
+    public Long occurredAt;
+    public Boolean closeOnly;
+    public String walletDelta;
+    public String frozenDelta;
+    public String usedDelta;
+    public String feeDelta;
+    public String pnlDelta;
+    public String accountVersion;
+    public Long deletedAt;
+}

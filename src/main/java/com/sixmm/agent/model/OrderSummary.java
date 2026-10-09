@@ -1,6 +1,7 @@
 package com.sixmm.agent.model;
 
 public class OrderSummary {
+    public String environment;
     public String orderNo;
     public String direction;
     public String transferMode;

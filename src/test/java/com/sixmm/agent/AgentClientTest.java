@@ -37,6 +37,43 @@ class AgentClientTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Test
+    void environmentIsOptInAndSigned() throws Exception {
+        CapturingTransport transport=new CapturingTransport(200,"{\"code\":0}");
+        AgentClient client=newClient(transport);
+        TransferRequest request=TransferRequest.fixed("environment-order","u",Direction.IN,"USDT","1");
+        client.transfer(request);
+        assertEquals(false,MAPPER.readTree(transport.lastBody).has("environment"));
+        request.withEnvironment("SIMULATED");client.transfer(request);
+        JsonNode body=MAPPER.readTree(transport.lastBody);
+        assertEquals("SIMULATED",body.get("environment").asText());
+        Map<String,String> params=new LinkedHashMap<>();
+        body.fields().forEachRemaining(e->{if(!e.getKey().equals("sign"))params.put(e.getKey(),e.getValue().asText());});
+        assertEquals(AgentSigner.signParams(params,"secret"),body.get("sign").asText());
+        params.put("environment","PRODUCTION");
+        assertEquals(false,AgentSigner.signParams(params,"secret").equals(body.get("sign").asText()));
+        assertThrows(IllegalArgumentException.class,()->request.withEnvironment("REAL"));
+    }
+
+    @Test
+    void walletAllTransferSignsTheModeAndQueriesOriginalOrder() throws Exception {
+        CapturingTransport transport = new CapturingTransport(200, "{\"code\":0,\"status\":\"PROCESSING\",\"amount\":\"1.00000001\"}");
+        AgentClient client = newClient(transport);
+        com.sixmm.agent.model.WalletTransferResponse response = client.walletTransfer(
+                com.sixmm.agent.model.WalletTransferRequest.of("wallet-1", "user-1", "CONTRACT_TO_FUNDING", "", true));
+        assertEquals("PROCESSING", response.status);
+        assertEquals("http://agent.test/v1/agent/wallet-transfer", transport.lastUrl);
+        JsonNode body = MAPPER.readTree(transport.lastBody);
+        assertEquals(true, body.get("transferAll").asBoolean());
+        assertEquals(false, body.has("amount"));
+        Map<String,String> params = new LinkedHashMap<>();
+        body.fields().forEachRemaining(entry -> { if (!entry.getKey().equals("sign")) params.put(entry.getKey(), entry.getValue().asText()); });
+        assertEquals(AgentSigner.signParams(params, "secret"), body.get("sign").asText());
+        client.queryWalletTransfer(com.sixmm.agent.model.WalletTransferQueryRequest.of("wallet-1"));
+        assertEquals("http://agent.test/v1/agent/wallet-transfer-status", transport.lastUrl);
+        assertEquals("wallet-1", MAPPER.readTree(transport.lastBody).get("agentOrderNo").asText());
+    }
+
+    @Test
     void transferInjectsAgentCodeTimestampNonceAndSign() throws Exception {
         CapturingTransport transport = new CapturingTransport(200, "{\"code\":0,\"message\":\"success\",\"orderStatus\":\"PROCESSING\"}");
         AgentClient client = newClient(transport);
@@ -104,6 +141,29 @@ class AgentClientTest {
         QueryUserAssetsResponse response = client.queryUserAssets(QueryUserAssetsRequest.of("1188041528"));
 
         assertTrue(response.isSimulatedUser);
+        assertTrue(!transport.lastBody.contains("includeFunding"));
+    }
+
+    @Test
+    void queryUserAssetsSignsFundingFlagAndReadsFunding() throws Exception {
+        CapturingTransport transport = new CapturingTransport(200,
+                "{\"code\":0,\"platformUserId\":\"1188041528\",\"funding\":{\"assetCode\":\"USDT\",\"availableAmount\":\"8.5\",\"heldAmount\":\"1.5\",\"totalAmount\":\"10\",\"materialized\":true}}");
+        QueryUserAssetsResponse response = newClient(transport).queryUserAssets(
+                QueryUserAssetsRequest.of("1188041528").withFunding());
+        JsonNode body = MAPPER.readTree(transport.lastBody);
+        assertTrue(body.get("includeFunding").asBoolean());
+        Map<String, Object> params = new LinkedHashMap<String, Object>();
+        params.put("platformUserId", "1188041528");
+        params.put("includeFunding", true);
+        params.put("agentCode", "AGENT001");
+        params.put("timestamp", 1713024000L);
+        params.put("nonce", "nonce-1");
+        assertEquals(AgentSigner.signParams(params, "secret"), body.get("sign").asText());
+        assertEquals("USDT", response.funding.assetCode);
+        assertEquals("8.5", response.funding.availableAmount);
+        assertEquals("1.5", response.funding.heldAmount);
+        assertEquals("10", response.funding.totalAmount);
+        assertTrue(response.funding.materialized);
     }
 
     @Test

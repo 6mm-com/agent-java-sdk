@@ -3,6 +3,14 @@ package com.sixmm.agent.model;
 import java.math.BigDecimal;
 
 public class TransferRequest {
+    // 省略时兼容正式环境；只有显式 SIMULATED 才切换。
+    public String environment;
+
+    public TransferRequest withEnvironment(String value) {
+        this.environment = ExecutionEnvironment.require(value);
+        return this;
+    }
+
     public String agentOrderNo;
     public String agentUserId;
     public String platformUserId;
