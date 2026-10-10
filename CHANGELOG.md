@@ -4,6 +4,7 @@
 
 - Include the complete public SDK method overview, grouped by integration workflow, in both READMEs.
 - Include merchant guidance for seconds trading, Funding wallets, simulated environments and older SDK upgrades.
+- Clarify Funding status-query environment recovery, add a complete Widget integration example and document historical ROE scaling.
 - Include the perpetual-query response-field reference; all installation examples use the stable 0.3.0 source tag.
 - Add six signed perpetual-query methods, request/response models and a command-line usage example.
 - Validate public player IDs and filters; sign array parameters as compact JSON; retain decimal strings and opaque cursors.

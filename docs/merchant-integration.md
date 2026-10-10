@@ -105,7 +105,7 @@ String webUrl = entry.webUrl;
 1. 使用平台提供的 Widget SDK 创建实例，配置目标秒合约页面和实盘/模拟模式。
 2. `tokenProvider` 收到该实例的 `channelId` 后，请求商户自己的认证接口。
 3. 商户后端根据登录会话取得 `agentUserId`，调用通用 `createEmbedToken`。
-4. 商户后端返回 `embedToken` 和 `expireAt`，由前端按 Widget 当前返回值契约交给 SDK。
+4. 商户后端返回 `embedToken`、`expireAt`，并原样带回当前请求的 `channelId`，由前端交给 SDK。
 5. 续签使用同一实例通道；重建 Widget 后使用新实例提供的通道。
 
 后端签 token 的调用：
@@ -121,7 +121,86 @@ long expireAt = auth.expireAt;
 
 对应接口：`POST /v1/agent/create-embed-token`。业务入参为 `agentUserId`、`channelId`，以及可选 `symbol`。秒合约不需要借用合约交易对来选择玩法。玩法、页面地址和交易模式由前端配置；token 不负责选择资金环境。
 
-token 为短期一次性凭据，不放入 URL query，不当作用户永久登录凭据。签发或续签 token 不会充值、划转或改变余额。Widget 构造函数的页面/模式参数名按商户实际使用的前端 SDK 版本配置；Java Agent SDK 负责后端认证，不包含浏览器 Widget 实现。
+token 为短期一次性凭据，不放入 URL query，不当作用户永久登录凭据。签发或续签 token 不会充值、划转或改变余额。Java Agent SDK 负责后端认证；浏览器端另行加载 Trading Widget SDK。
+
+#### 前端完整示例
+
+以下参数已按公开 [Trading Widget SDK](https://app.6mm.com/sdk/trading-widget/v1/index.js) 核对（2026-10-10，线上版本 `1.7.0`）。Widget 版本与 Java SDK `v0.3.0` 是两个独立版本。
+
+```html
+<div id="seconds-widget" style="width: 100%; height: 720px"></div>
+<script src="https://app.6mm.com/sdk/trading-widget/v1/index.js"></script>
+<script>
+  const page = 'up-down';
+  const tradingMode = 'demo';
+  const capabilities = TradingWidget.capabilities;
+  if (!capabilities?.partnerToken ||
+      !capabilities.pages?.includes(page) ||
+      !capabilities.tradingModes?.includes(tradingMode)) {
+    throw new Error('Trading Widget SDK does not support the requested page or mode');
+  }
+
+  const widget = TradingWidget.create('#seconds-widget', {
+    baseUrl: 'https://app.6mm.com',
+    page,
+    tradingMode,
+    theme: 'dark',
+    locale: 'zh-CN',
+    auth: {
+      mode: 'partner-token',
+      tokenProvider: async ({ channelId }) => {
+        // 这是商户自行实现的接口；后端从登录会话取得用户身份。
+        const response = await fetch('/api/seconds/embed-token', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channelId }),
+        });
+        if (!response.ok) {
+          throw new Error('Failed to request embed token');
+        }
+        const result = await response.json();
+        if (typeof result.embedToken !== 'string' || !result.embedToken.trim() ||
+            !Number.isFinite(result.expireAt) || result.channelId !== channelId) {
+          throw new Error('Invalid embed token response');
+        }
+        return {
+          embedToken: result.embedToken,
+          expireAt: result.expireAt,
+          channelId: result.channelId,
+        };
+      },
+    },
+    onReady() {
+      console.log('Trading widget ready');
+    },
+    onError(error) {
+      console.error('Trading widget error', error.code);
+    },
+  });
+  window.addEventListener('beforeunload', () => widget.destroy());
+</script>
+```
+
+| 选项 | 取值 | 说明 |
+| --- | --- | --- |
+| `page` | `up-down` / `high-low` / `grid-prediction` | 涨跌 / 高低 / 网格预测；这是页面选项，不是 token 入参 |
+| `tradingMode` | `real` / `demo` | 实盘 / 模拟盘；省略时默认为 `real`，建议始终显式传入 |
+| `baseUrl` | `https://app.6mm.com` | 平台前端地址；SDK 自动生成 `/embed/trading` 及页面、模式和通道参数 |
+
+商户后端 `/api/seconds/embed-token` 接收 `{ "channelId": "tw_xxx" }`，校验当前登录会话并调用前面的 `createEmbedToken`，成功后返回以下**顶层结构**：
+
+```json
+{
+  "embedToken": "short-one-time-token",
+  "expireAt": 1791590700,
+  "channelId": "tw_xxx"
+}
+```
+
+`expireAt` 使用 Agent 返回的实际 Unix 秒时间戳，不要使用示例值；`channelId` 由商户后端原样带回当前请求值，Agent 的 token 响应本身不包含该字段。如果商户接口使用 `{ "data": ... }` 包装，前端须先取 `data` 再返回上述对象给 `tokenProvider`。业务失败应返回失败 HTTP 状态或在解析包装层时显式抛错。
+
+SDK 在初始化和续签时调用 `tokenProvider`，每次都应请求新的 token；不要缓存并重复兑换同一个 token。用户切换或实盘/模拟盘切换时销毁旧实例，再以目标模式创建新实例。模拟页面的资金接口另行传 `environment=SIMULATED`；设置 `tradingMode` 或签 token 都不会替商户切换钱包请求的环境。
 
 ## 5. 钱包查询与划转
 
@@ -210,7 +289,7 @@ WalletTransferResponse recovered = client.queryWalletTransfer(
                 .withEnvironment(ExecutionEnvironment.SIMULATED));
 ```
 
-该接口会恢复原资金操作状态，不能用旧 `queryOrder` 代替。查单必须与创建时使用相同环境；模拟单查单省略环境会按正式环境处理并产生环境不匹配。
+该接口会恢复原资金操作状态，不能用旧 `queryOrder` 代替。建议保存原单环境，查单时显式传入相同值。`wallet-transfer-status` 省略 `environment` 时，服务端按原订单保存的环境查询和恢复，模拟单仍使用模拟环境；只有显式传入的环境与原单不一致时，才返回 `102002`（`order environment mismatch`）。省略环境时，响应也不带 `environment` 字段，不要将其解读为实盘订单。
 
 商户本地出入账均做幂等；发起前持久化订单和余额预留，结果未知时保留待确认。Funding 接入以专用查单确认终态；不要假定旧合约划转 Webhook 或冲正方法自动适用于 Funding。
 
@@ -341,7 +420,8 @@ HTTP 成功不代表业务成功，必须检查 `code`。Java SDK 会以 `AgentA
 | 项目 | 实盘 | 模拟盘 |
 | --- | --- | --- |
 | 绑定及入口认证 | 通用绑定、通用票据/token | 同一身份及通用认证，无需重新绑定 |
-| 有环境字段的资金请求 | 省略或 `PRODUCTION` | 必须显式 `SIMULATED` |
+| 新资金划转及余额查询 | 省略或 `PRODUCTION` | 必须显式 `SIMULATED` |
+| Funding 原单查单 `wallet-transfer-status` | 显式 `PRODUCTION`；省略时沿用原单环境 | 显式 `SIMULATED`；省略时沿用原单环境 |
 | 前端模式 | `tradingMode=real` 或 SDK 对应配置 | `tradingMode=demo` 或 SDK 对应配置 |
 | HTTP/WS 目标 | 实盘运行目标 | 模拟运行目标，按平台前端配置 |
 | 余额及资金查单 | 实盘钱包、实盘原单 | 模拟钱包、模拟原单 |
@@ -351,7 +431,7 @@ Java `v0.3.0` 支持环境的请求类型包括 `TransferRequest`、`TransferAll
 
 商户后端须在发起、查询、恢复和对账中保持原单环境一致。模式由后端受控配置或授权选择，不能在超时后回退到省略环境。建议单号带 `SIM-` 前缀，数据库保存明确环境，并让模拟业务使用商户自己的虚拟账务流程。
 
-`isSimulatedUser` 是账户性质；它不负责将请求路由到模拟盘。即使该字段为 true，省略 `environment` 仍按实盘目标处理。
+`isSimulatedUser` 是账户性质；它不负责将请求路由到模拟盘。发起新资金划转或查询余额时，即使该字段为 true，省略 `environment` 仍按实盘目标处理。Funding 原单查单的环境恢复规则见第 5.3 节。
 
 模拟秒合约联调顺序：绑定 → 显式模拟余额查询 → 小额模拟 Funding 转入 → 查询原单确认成功 → 跳转或内嵌模拟秒合约页面 → 查询模拟余额 → 需要退出资金时按模拟 Funding 单独划回。模拟永续联调可将模拟 Funding 转至模拟 Contract，然后在模拟合约页面交易；业务数据验收使用平台支持的模拟交易前端/用户接口，本指南六类商户查询不能替代它。
 
