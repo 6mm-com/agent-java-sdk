@@ -2,7 +2,7 @@
 
 > 适用对象：代理商后端研发、技术支持、联调人员
 > SDK：`com.sixmm.exchange.sdk:agent`
-> 当前源码版本：`0.3.1`
+> 当前源码版本：`0.3.0`
 > 最低运行环境：Java 8+
 
 ## 1. 文档目的
@@ -12,8 +12,6 @@
 SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏览器、App、小程序或其他客户端。
 
 完整指南：[秒合约、钱包、模拟盘与旧 SDK 升级](docs/merchant-integration.md) · [合约查询返回字段说明](docs/perpetual-response-fields.md)。
-
-`v0.3.1` 为文档修订补丁，Java 源码及 API 行为与 `v0.3.0` 相同；已使用 `v0.3.0` 的项目无需仅为文档更新升级。
 
 ## 2. 典型接入场景
 
@@ -71,7 +69,7 @@ SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏�
 <dependency>
     <groupId>com.sixmm.exchange.sdk</groupId>
     <artifactId>agent</artifactId>
-    <version>0.3.1</version>
+    <version>0.3.0</version>
 </dependency>
 ```
 
@@ -82,17 +80,17 @@ SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏�
 ```bash
 git clone https://github.com/6mm-com/agent-java-sdk.git
 cd agent-java-sdk
-git checkout v0.3.1
+git checkout v0.3.0
 mvn install
 ```
 
 说明：GitHub 仓库只提供源码托管。仓库公开后，接入方可以 clone 源码并执行
-`git checkout v0.3.1 && mvn install` 安装到自己的本地 Maven 仓库，但不能仅凭 GitHub 仓库地址在
+`git checkout v0.3.0 && mvn install` 安装到自己的本地 Maven 仓库，但不能仅凭 GitHub 仓库地址在
 `pom.xml` 中直接引用上面的依赖坐标。要让外部项目直接通过 Maven 引入，需要
 额外发布到 Maven 仓库，例如公司私服、Maven Central、GitHub Packages，或接入
 JitPack 这类基于 GitHub 构建的服务。
 
-已有项目参见 [旧 SDK 升级指南](docs/merchant-integration.md#8-旧-sdk-升级)。安装使用稳定源码标签，最新接入说明查看 `main` 的 README；已发布标签保持原发布快照。
+已有项目参见 [旧 SDK 升级指南](docs/merchant-integration.md#8-旧-sdk-升级)。安装与查阅接入说明均可使用稳定源码标签 `v0.3.0`。
 
 ## 资金钱包与模拟环境
 
@@ -781,7 +779,7 @@ mvn package
 mvn clean install
 ```
 
-## 永续批量查询（0.3.1）
+## 永续批量查询（0.3.0）
 
 正式环境已支持六类查询；平台提供的其他接入地址需单独确认可用能力。六类方法均为 `/v1/agent/perpetual` 下的签名 POST：
 

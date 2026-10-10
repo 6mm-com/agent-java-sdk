@@ -12,8 +12,6 @@ Chinese documentation: [README.zh-CN.md](README.zh-CN.md)
 
 Partner guides: [seconds trading, wallets, simulated trading and SDK upgrades (Chinese)](docs/merchant-integration.md) · [perpetual response fields (Chinese)](docs/perpetual-response-fields.md).
 
-`v0.3.1` is a documentation patch release. Java sources and API behavior are unchanged from `v0.3.0`; existing users do not need to upgrade solely for these documentation changes.
-
 ## Requirements
 
 - Java 8+
@@ -75,7 +73,7 @@ Current source coordinates:
 <dependency>
     <groupId>com.sixmm.exchange.sdk</groupId>
     <artifactId>agent</artifactId>
-    <version>0.3.1</version>
+    <version>0.3.0</version>
 </dependency>
 ```
 
@@ -86,18 +84,18 @@ repository first:
 ```bash
 git clone https://github.com/6mm-com/agent-java-sdk.git
 cd agent-java-sdk
-git checkout v0.3.1
+git checkout v0.3.0
 mvn install
 ```
 
 After local installation, your business project can resolve
-`com.sixmm.exchange.sdk:agent:0.3.1` from the local Maven repository.
+`com.sixmm.exchange.sdk:agent:0.3.0` from the local Maven repository.
 
 For team builds and test environments, publish the SDK to a Maven repository
 such as Nexus, Artifactory, GitHub Packages, Maven Central, or use a GitHub
 based build service such as JitPack.
 
-For an existing integration, see the [SDK upgrade guide](docs/merchant-integration.md#8-旧-sdk-升级). Use the stable source tag for installation and the `main` README for current integration documentation. Published tags remain release snapshots.
+For an existing integration, see the [SDK upgrade guide](docs/merchant-integration.md#8-旧-sdk-升级). Use the stable `v0.3.0` source tag to install the SDK and read its matching integration documentation.
 
 ## Funding Wallets And Simulated Trading
 
@@ -849,7 +847,7 @@ If a business project uses local installation:
 mvn clean install
 ```
 
-## Perpetual queries (0.3.1)
+## Perpetual queries (0.3.0)
 
 These methods are available in production. Confirm availability separately for other endpoints provided by 6MM. All six methods use signed POST requests under `/v1/agent/perpetual`.
 

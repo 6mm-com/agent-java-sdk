@@ -1,6 +1,6 @@
 # 商户接入指南：秒合约、合约数据查询与模拟盘
 
-适用对象：商户后端、前端及联调人员。核对日期：2026-10-10。Java 示例使用公开 Agent Java SDK `v0.3.1`；其他语言可按相同 HTTP 契约对接。
+适用对象：商户后端、前端及联调人员。核对日期：2026-10-10。Java 示例使用公开 Agent Java SDK `v0.3.0`；其他语言可按相同 HTTP 契约对接。
 
 商户后端使用 Agent API 完成用户绑定、入口认证、资金操作和数据查询；商户前端使用交易页面或 Trading Widget 展示交易。秒合约与永续合约共用用户绑定和入口认证，选择不同页面即可进入对应产品。资金接口的 `environment` 与前端交易模式需要分别配置。
 
@@ -11,10 +11,10 @@
 | 秒合约跳转 | `createEntryUrl` + 对应玩法的 `redirectPath` | 支持涨跌、高低、网格预测页面 |
 | 秒合约内嵌 | 通用 `createEmbedToken` + Trading Widget 对应页面 | 沿用现有认证；无需增加预测专用 token |
 | 秒合约钱包 | `queryUserAssets(includeFunding=true)`、`walletTransfer`、`queryWalletTransfer` | 当前 Funding 接口使用 USDT |
-| 永续合约业务数据 | 六类 `/v1/agent/perpetual/**` 查询 | 正式环境已支持；Java SDK `v0.3.1` 包含对应方法 |
+| 永续合约业务数据 | 六类 `/v1/agent/perpetual/**` 查询 | 正式环境已支持；Java SDK `v0.3.0` 包含对应方法 |
 | 模拟资金操作 | 支持环境字段的接口显式传 `SIMULATED` | 用户绑定不变，资金目标切换至模拟环境 |
 | 模拟合约六类数据查询 | 本指南所列六接口尚无 `environment` 字段 | 不能据此查询模拟盘订单、成交、持仓或账变 |
-| SDK 分发 | GitHub 稳定源码标签 `v0.3.1` | 尚未发布 Maven Central；先安装到本地或商户私服 |
+| SDK 分发 | GitHub 稳定源码标签 `v0.3.0` | 尚未发布 Maven Central；先安装到本地或商户私服 |
 
 正式 Agent 地址：`https://agent-api.6mm.com`。交易前端地址：`https://app.6mm.com`。商户使用平台提供的地址和权限配置，资金环境与交易模式分别按本文第 7 节设置。
 
@@ -347,7 +347,7 @@ HTTP 成功不代表业务成功，必须检查 `code`。Java SDK 会以 `AgentA
 | 余额及资金查单 | 实盘钱包、实盘原单 | 模拟钱包、模拟原单 |
 | 本指南六类永续查询 | 查询正式环境数据 | 当前不提供模拟环境选择 |
 
-Java `v0.3.1` 支持环境的请求类型包括 `TransferRequest`、`TransferAllOutRequest`、`ReverseOrderRequest`、`QueryOrderRequest`、`ListOrdersRequest`、`QueryUserAssetsRequest`、`WalletTransferRequest`、`WalletTransferQueryRequest`，均可使用 `withEnvironment(ExecutionEnvironment.SIMULATED)`。
+Java `v0.3.0` 支持环境的请求类型包括 `TransferRequest`、`TransferAllOutRequest`、`ReverseOrderRequest`、`QueryOrderRequest`、`ListOrdersRequest`、`QueryUserAssetsRequest`、`WalletTransferRequest`、`WalletTransferQueryRequest`，均可使用 `withEnvironment(ExecutionEnvironment.SIMULATED)`。
 
 商户后端须在发起、查询、恢复和对账中保持原单环境一致。模式由后端受控配置或授权选择，不能在超时后回退到省略环境。建议单号带 `SIM-` 前缀，数据库保存明确环境，并让模拟业务使用商户自己的虚拟账务流程。
 
@@ -365,21 +365,21 @@ Java `v0.3.1` 支持环境的请求类型包括 `TransferRequest`、`TransferAll
 | 秒合约已有通用内嵌认证 | 复用认证和续签，调整产品页面；资金新增能力按下列要求升级 |
 | 要使用 Funding 余额/划转 | 使用包含 `withFunding`、`walletTransfer` 和专用查单的版本 |
 | 要显式对接模拟资金环境 | 使用包含 environment 请求及响应模型的版本 |
-| 要调用六类永续查询 | 使用公开 Java SDK `v0.3.1`，包含六方法和数组签名 |
+| 要调用六类永续查询 | 使用公开 Java SDK `v0.3.0`，包含六方法和数组签名 |
 
 升级后客户端 `baseUrl`、`agentCode`、`apiSecret` 配置方式不变；已有订单和用户映射继续保留。
 
 ### 8.2 固定稳定源码标签安装
 
-公开 Java SDK：[6mm-com/agent-java-sdk](https://github.com/6mm-com/agent-java-sdk)。本指南固定 [v0.3.1](https://github.com/6mm-com/agent-java-sdk/tree/v0.3.1)，使用 Java 8 字节码目标。安装时核对 `HEAD` 与该标签解析出的提交一致。
+公开 Java SDK：[6mm-com/agent-java-sdk](https://github.com/6mm-com/agent-java-sdk)。本指南固定 [v0.3.0](https://github.com/6mm-com/agent-java-sdk/tree/v0.3.0)，使用 Java 8 字节码目标。安装时核对 `HEAD` 与该标签解析出的提交一致。
 
 在新的 SDK 源码目录安装，避免覆盖已有商户改动：
 
 ```bash
-git clone --branch v0.3.1 --single-branch https://github.com/6mm-com/agent-java-sdk.git agent-java-sdk-v0.3.1
-cd agent-java-sdk-v0.3.1
+git clone --branch v0.3.0 --single-branch https://github.com/6mm-com/agent-java-sdk.git agent-java-sdk-v0.3.0
+cd agent-java-sdk-v0.3.0
 git rev-parse HEAD
-git rev-parse 'v0.3.1^{commit}'
+git rev-parse 'v0.3.0^{commit}'
 mvn install
 ```
 
@@ -389,11 +389,11 @@ mvn install
 <dependency>
     <groupId>com.sixmm.exchange.sdk</groupId>
     <artifactId>agent</artifactId>
-    <version>0.3.1</version>
+    <version>0.3.0</version>
 </dependency>
 ```
 
-该坐标来自 [v0.3.1 POM](https://github.com/6mm-com/agent-java-sdk/blob/v0.3.1/pom.xml)。GitHub 标签发布不等于 Maven Central 发布：本地 `mvn install` 后本机可以解析；CI 和其他开发机需执行同样安装，或从商户自己的制品私服获取已核对的 JAR/POM。
+该坐标来自 [v0.3.0 POM](https://github.com/6mm-com/agent-java-sdk/blob/v0.3.0/pom.xml)。GitHub 标签发布不等于 Maven Central 发布：本地 `mvn install` 后本机可以解析；CI 和其他开发机需执行同样安装，或从商户自己的制品私服获取已核对的 JAR/POM。
 
 使用 Maven 检查依赖树，确保只有预期版本：
 
@@ -401,7 +401,7 @@ mvn install
 mvn dependency:tree -Dincludes=com.sixmm.exchange.sdk:agent
 ```
 
-若旧项目已有自建 `0.3.0` 制品，核对其是否来自公开 `v0.3.0` 标签，并确认包含六类查询方法及新的请求/响应模型。`v0.3.1` 是文档修订补丁，Java 源码与 `v0.3.0` 相同；已使用公开 `v0.3.0` 的项目无需为文档修订强制升级。共享私服中的既有同坐标制品由商户按私服策略处理，不静默覆盖。
+若旧项目已有自建 `0.3.0` 制品，核对其是否来自公开 `v0.3.0` 标签，并确认包含六类查询方法及新的请求/响应模型。共享私服中的既有同坐标制品由商户按私服策略处理，不静默覆盖。
 
 ### 8.3 升级后适配点
 
@@ -467,5 +467,5 @@ agentCode=MERCHANT_CODE&limit=100&nonce=fresh-random-value&orderCategory=NORMAL&
 ## 11. 相关文档
 
 - [合约查询返回字段说明](perpetual-response-fields.md)。
-- [Java SDK v0.3.1 中文参考](https://github.com/6mm-com/agent-java-sdk/blob/v0.3.1/README.zh-CN.md)。
+- [Java SDK v0.3.0 中文参考](https://github.com/6mm-com/agent-java-sdk/blob/v0.3.0/README.zh-CN.md)。
 - [Java SDK 公开仓库](https://github.com/6mm-com/agent-java-sdk)。
