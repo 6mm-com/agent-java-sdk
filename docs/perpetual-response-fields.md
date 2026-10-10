@@ -239,4 +239,4 @@
 ## 10. 相关文档
 
 - [商户接入指南](merchant-integration.md)。
-- [Java SDK v0.3.0 中文参考](https://github.com/6mm-com/agent-java-sdk/blob/v0.3.0/README.zh-CN.md)。
+- [Java SDK v0.3.1 中文参考](https://github.com/6mm-com/agent-java-sdk/blob/v0.3.1/README.zh-CN.md)。
