@@ -543,7 +543,7 @@ import com.sixmm.agent.model.CreateEntryUrlResponse;
 
 CreateEntryUrlResponse resp = client.createEntryUrl(
         CreateEntryUrlRequest.of("agent-user-001")
-                .withRedirectPath("/trade/BTCUSDT")
+                .withRedirectPath("/zh-CN/futures/BTCUSDT?tradingMode=real")
                 .withReturnUrl("https://partner.example.com/return#markets"));
 
 System.out.println(resp.webUrl);
@@ -554,9 +554,11 @@ System.out.println(resp.expireAt);
 
 | 字段 | 说明 |
 | --- | --- |
-| `redirectPath` | 6MM 前端内部相对路径，必须以 `/` 开头，例如 `/trade/BTCUSDT` |
+| `redirectPath` | 6MM 前端内部相对路径，必须以 `/` 开头，例如 `/zh-CN/futures/BTCUSDT?tradingMode=real` |
 | `returnUrl` | 用户在 6MM 前端退出时回跳的代理商绝对 URL，只允许 `http` 或 `https` |
 | `expireAt` | 入口 ticket 过期时间，Unix 秒级时间戳 |
+
+本例进入永续合约实盘页面。模拟盘使用 `tradingMode=demo`，并在对应钱包请求中显式选择 `SIMULATED`。创建入口链接只负责用户认证，不执行资金划转，也不替商户选择钱包环境。
 
 安全要求：
 

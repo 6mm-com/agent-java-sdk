@@ -587,7 +587,7 @@ import com.sixmm.agent.model.CreateEntryUrlResponse;
 
 CreateEntryUrlResponse resp = client.createEntryUrl(
         CreateEntryUrlRequest.of("agent-user-001")
-                .withRedirectPath("/trade/BTCUSDT")
+                .withRedirectPath("/en/futures/BTCUSDT?tradingMode=real")
                 .withReturnUrl("https://partner.example.com/return#markets"));
 
 System.out.println(resp.webUrl);
@@ -598,9 +598,11 @@ Field rules:
 
 | Field | Description |
 | --- | --- |
-| `redirectPath` | 6MM frontend relative path. It must start with `/`, for example `/trade/BTCUSDT` |
+| `redirectPath` | 6MM frontend relative path. It must start with `/`, for example `/en/futures/BTCUSDT?tradingMode=real` |
 | `returnUrl` | Partner absolute URL used when the user exits 6MM frontend. Only `http` and `https` are allowed |
 | `expireAt` | Entry ticket expiration time as a Unix timestamp in seconds |
+
+The example opens the perpetual futures page in real mode. Use `tradingMode=demo` for simulated trading and explicitly select `SIMULATED` in the corresponding wallet requests. Creating an entry URL authenticates the user; it does not transfer funds or select the wallet environment.
 
 Security requirements:
 
