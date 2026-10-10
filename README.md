@@ -5,9 +5,12 @@ Java SDK for the 6MM Agent REST API.
 This SDK is intended for partner backend services. It wraps request signing,
 timestamp and nonce generation, amount formatting, HTTP calls, business
 exceptions, FX reference-rate queries, entry URL creation, Trading Widget
-embed token creation, and webhook signature verification.
+embed token creation, Funding wallet transfers, execution-environment selection,
+six perpetual-data queries, and webhook signature verification.
 
 Chinese documentation: [README.zh-CN.md](README.zh-CN.md)
+
+Partner guides: [seconds trading, wallets, simulated trading and SDK upgrades (Chinese)](docs/merchant-integration.md) · [perpetual response fields (Chinese)](docs/perpetual-response-fields.md).
 
 ## Requirements
 
@@ -25,7 +28,15 @@ Chinese documentation: [README.zh-CN.md](README.zh-CN.md)
 | Query order | `queryOrder` | Query one transfer order by partner order number |
 | List orders | `listOrders` | Page through transfer orders for reconciliation |
 | Query partner account | `queryAccount` | Query the partner margin or funding account |
-| Query user assets | `queryUserAssets` | Query a bound user's 6MM-side assets |
+| Query user assets | `queryUserAssets` | Query Contract assets; use `withFunding()` to include Funding balances |
+| Funding transfer | `walletTransfer` | Partner ↔ Funding or Funding ↔ Contract; confirm the returned status |
+| Funding transfer status | `queryWalletTransfer` | Recover a Funding operation using its original partner order number |
+| Current perpetual orders | `listCurrentPerpetualOrders` | Query current NORMAL or CONDITIONAL orders |
+| Perpetual order history | `listPerpetualOrderHistory` | Query terminal NORMAL or CONDITIONAL orders |
+| Perpetual trades | `listPerpetualTrades` | Query trade fills for an explicit public player list |
+| Current perpetual positions | `listCurrentPerpetualPositions` | Query current positions |
+| Perpetual position history | `listPerpetualPositionHistory` | Query closed positions |
+| Perpetual account ledger | `listPerpetualLedger` | Query individual Contract balance-change records |
 | List supported fiat currencies | `listSupportedFiatCurrencies` | List fiat currencies currently convertible to USDT |
 | Query FX reference rates | `queryExchangeRates` | Query daily fiat-to-USDT reference ratios for all or selected currencies |
 | Direct entry URL | `createEntryUrl` | Create a one-time SSO URL for redirect mode |
@@ -35,7 +46,7 @@ Chinese documentation: [README.zh-CN.md](README.zh-CN.md)
 
 ## Configuration
 
-Obtain the following values from 6MM or your internal operations system before
+Obtain the following values from 6MM before
 integrating.
 
 | Item | Example | Description |
@@ -73,7 +84,7 @@ repository first:
 ```bash
 git clone https://github.com/6mm-com/agent-java-sdk.git
 cd agent-java-sdk
-git checkout codex/perpetual-release
+git checkout v0.3.0
 mvn install
 ```
 
@@ -83,6 +94,55 @@ After local installation, your business project can resolve
 For team builds and test environments, publish the SDK to a Maven repository
 such as Nexus, Artifactory, GitHub Packages, Maven Central, or use a GitHub
 based build service such as JitPack.
+
+For an existing integration, see the [SDK upgrade guide](docs/merchant-integration.md#8-旧-sdk-升级). Use the stable source tag for installation and the `main` README for current integration documentation. Published tags remain release snapshots.
+
+## Funding Wallets And Simulated Trading
+
+Funding wallets support USDT through `walletTransfer`. The directions are
+`PARTNER_TO_FUNDING`, `FUNDING_TO_PARTNER`, `FUNDING_TO_CONTRACT`, and
+`CONTRACT_TO_FUNDING`. Only Funding ↔ Contract supports `transferAll=true`;
+otherwise pass a positive decimal amount string.
+
+```java
+import com.sixmm.agent.model.ExecutionEnvironment;
+import com.sixmm.agent.model.QueryUserAssetsRequest;
+import com.sixmm.agent.model.QueryUserAssetsResponse;
+import com.sixmm.agent.model.WalletTransferRequest;
+import com.sixmm.agent.model.WalletTransferQueryRequest;
+import com.sixmm.agent.model.WalletTransferResponse;
+
+QueryUserAssetsResponse assets = client.queryUserAssets(
+        QueryUserAssetsRequest.of("1188041528")
+                .withFunding()
+                .withEnvironment(ExecutionEnvironment.SIMULATED));
+
+WalletTransferResponse transfer = client.walletTransfer(
+        WalletTransferRequest.of("SIM-FUNDING-UNIQUE-001", "agent-user-001",
+                "PARTNER_TO_FUNDING", "10.00000000", false)
+                .withEnvironment(ExecutionEnvironment.SIMULATED));
+
+// 结果未知或 PROCESSING 时查询原单，不换单号重新划转。
+WalletTransferResponse status = client.queryWalletTransfer(
+        WalletTransferQueryRequest.of("SIM-FUNDING-UNIQUE-001")
+                .withEnvironment(ExecutionEnvironment.SIMULATED));
+```
+
+Funding uses `/v1/agent/wallet-transfer` and `/v1/agent/wallet-transfer-status`.
+Check `status` (`SUCCESS`, `PROCESSING`, `FAILED`), not the legacy transfer
+`orderStatus`. Preserve the original order number and environment when recovering
+an unknown result; legacy `queryOrder` is not the Funding status API.
+
+Supported wallet/transfer request models expose `withEnvironment`: omitted or
+`PRODUCTION` selects real funds; `SIMULATED` selects simulated funds. Set the
+frontend trading mode and HTTP/WS targets separately. User binding and generic
+entry authentication do not select the funds environment. The six perpetual
+queries currently query production data and do not accept `environment`.
+
+Seconds trading uses Funding balances and the same `createEntryUrl` /
+`createEmbedToken` authentication as perpetual trading. Configure the seconds
+page through the frontend; issuing or refreshing a token does not move funds.
+See the [partner integration guide](docs/merchant-integration.md) for the complete flow.
 
 ## Client Initialization
 
@@ -253,7 +313,7 @@ Request fields:
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `agentUserId` | string | Yes | Unique partner-side user ID |
-| `username` | string | No | Partner-side display name. When provided, 6MM writes it to `users.nick_name` |
+| `username` | string | No | Partner-side display name used as the platform user's nickname |
 | `ext` | string | No | Extension field. JSON string is recommended |
 
 Response fields:
@@ -789,7 +849,7 @@ mvn clean install
 
 ## Perpetual queries (0.3.0)
 
-These methods require the corresponding Agent perpetual-query feature to be deployed and enabled by the operator. The production feature was enabled and checked on 2026-10-10; other deployments must confirm their own readiness. All six methods use signed POST requests under `/v1/agent/perpetual`.
+These methods are available in production. Confirm availability separately for other endpoints provided by 6MM. All six methods use signed POST requests under `/v1/agent/perpetual`.
 
 | Method | Route | Player selection |
 | --- | --- | --- |
@@ -802,7 +862,7 @@ These methods require the corresponding Agent perpetual-query feature to be depl
 
 `platformUserIds` contains 1–100 unique public platform user IDs (10-digit strings), never internal user IDs. Omitting this field on supported routes selects the authenticated partner's direct players; an explicit empty array is invalid. Order queries require `orderCategory` (`NORMAL` or `CONDITIONAL`). The partner/agent ID is derived from authentication, not supplied as a filter.
 
-Historical filters use Unix milliseconds and `[startTime, endTime)`: order creation time, trade execution time, position closing time, or ledger record creation time respectively. Current orders/positions do not accept historical time filters. PG order timestamps describe record creation/update, and are not guaranteed to equal trading-core event times. Default page size is 500, maximum 1000. Keep filters unchanged and pass `nextCursor` until `hasMore` is false, even if an intermediate page is empty. Pagination does not provide a cross-page snapshot or a guaranteed incremental event feed.
+Historical filters use Unix milliseconds and `[startTime, endTime)`: order creation time, trade execution time, position closing time, or ledger record creation time respectively. Current orders/positions do not accept historical time filters. Order timestamps describe record creation/update. Default page size is 500, maximum 1000. Keep filters unchanged and pass `nextCursor` until `hasMore` is false, even if an intermediate page is empty. Pagination does not provide a cross-page snapshot or a guaranteed incremental event feed.
 
 ```java
 import com.sixmm.agent.model.PerpetualTradesRequest;
@@ -821,7 +881,7 @@ do {
 } while (Boolean.TRUE.equals(page.data.hasMore));
 ```
 
-The SDK signs arrays as compact JSON and retains record IDs/amounts as strings. Current NORMAL orders omit leverage and margin mode; these are trading-pair settings. Ledger records use their individual detail ID and may share a ledger ID. Missing fields are not zero values.
+The SDK signs arrays as compact JSON and retains record IDs/amounts as strings. Current NORMAL orders omit leverage and margin mode. Ledger records use their individual detail ID and may share a ledger ID. Missing fields are not zero values. See the [response field reference (Chinese)](docs/perpetual-response-fields.md) for field types, resource-specific meanings, statuses and omission rules.
 
 All six routes share the partner's rate limit: default 2 requests/second, burst 4, plus concurrency protection. Business error `6905` indicates frequency limiting; `6904` indicates unavailability/concurrency protection. SDK calls throw `AgentApiException` and do not retry automatically. On an explicit bounded retry, keep the same cursor/filters; calling the SDK again generates a fresh timestamp, nonce and signature. Coordinate throttling across your processes; per-loop sleeps alone do not coordinate concurrent callers.
 

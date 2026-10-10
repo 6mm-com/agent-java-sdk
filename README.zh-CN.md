@@ -7,9 +7,11 @@
 
 ## 1. 文档目的
 
-本文说明代理商如何在 Java 项目中接入 6MM Agent API。Java SDK 会封装签名、时间戳、nonce、金额字符串、法币参考汇率查询、HTTP 调用、业务异常和 Webhook 验签，代理商后端只需要按业务流程调用 SDK 方法。
+本文说明代理商如何在 Java 项目中接入 6MM Agent API。Java SDK 封装签名、时间戳、nonce、金额字符串、HTTP 调用、资金钱包划转、环境选择、六类永续合约数据查询、法币参考汇率和 Webhook 验签。
 
 SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏览器、App、小程序或其他客户端。
+
+完整指南：[秒合约、钱包、模拟盘与旧 SDK 升级](docs/merchant-integration.md) · [合约查询返回字段说明](docs/perpetual-response-fields.md)。
 
 ## 2. 典型接入场景
 
@@ -22,7 +24,15 @@ SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏�
 | 查询订单 | `queryOrder` | 按代理商订单号查询单笔划转订单 |
 | 查询订单列表 | `listOrders` | 分页查询划转订单 |
 | 查询代理商资金 | `queryAccount` | 查询代理商保证金账户 |
-| 查询用户资产 | `queryUserAssets` | 查询已绑定用户在 6MM 侧资产 |
+| 查询用户资产 | `queryUserAssets` | 查询合约资产；`withFunding()` 可同时查询 Funding 余额 |
+| Funding 划转 | `walletTransfer` | 商户与 Funding 增减，或 Funding 与 Contract 互转 |
+| Funding 查单 | `queryWalletTransfer` | 按原商户单号恢复 Funding 操作结果 |
+| 当前合约委托 | `listCurrentPerpetualOrders` | 查询普通或条件委托当前状态 |
+| 合约委托历史 | `listPerpetualOrderHistory` | 查询普通或条件委托终态 |
+| 合约成交明细 | `listPerpetualTrades` | 按显式公开玩家列表查询成交 |
+| 当前合约持仓 | `listCurrentPerpetualPositions` | 查询当前持仓 |
+| 合约持仓历史 | `listPerpetualPositionHistory` | 查询已结束持仓 |
+| 合约账变明细 | `listPerpetualLedger` | 查询逐条合约资金账变 |
 | 查询支持法币 | `listSupportedFiatCurrencies` | 查询当前支持换算为 USDT 的法币列表 |
 | 查询参考汇率 | `queryExchangeRates` | 查询全部或指定法币兑 USDT 的日级参考比例 |
 | 直接跳转入口 | `createEntryUrl` | 生成一次性 SSO 跳转链接 |
@@ -32,7 +42,7 @@ SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏�
 
 ## 3. 接入前准备
 
-请先从 6MM 或内部运营系统获取以下配置：
+请先从 6MM 获取以下配置：
 
 | 配置项 | 示例 | 说明 |
 | --- | --- | --- |
@@ -70,15 +80,51 @@ SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏�
 ```bash
 git clone https://github.com/6mm-com/agent-java-sdk.git
 cd agent-java-sdk
-git checkout codex/perpetual-release
+git checkout v0.3.0
 mvn install
 ```
 
 说明：GitHub 仓库只提供源码托管。仓库公开后，接入方可以 clone 源码并执行
-`git checkout codex/perpetual-release && mvn install` 安装到自己的本地 Maven 仓库，但不能仅凭 GitHub 仓库地址在
+`git checkout v0.3.0 && mvn install` 安装到自己的本地 Maven 仓库，但不能仅凭 GitHub 仓库地址在
 `pom.xml` 中直接引用上面的依赖坐标。要让外部项目直接通过 Maven 引入，需要
 额外发布到 Maven 仓库，例如公司私服、Maven Central、GitHub Packages，或接入
 JitPack 这类基于 GitHub 构建的服务。
+
+已有项目参见 [旧 SDK 升级指南](docs/merchant-integration.md#8-旧-sdk-升级)。安装使用稳定源码标签，最新接入说明查看 `main` 的 README；已发布标签保持原发布快照。
+
+## 资金钱包与模拟环境
+
+Funding 接口当前支持 USDT。`walletTransfer` 提供 `PARTNER_TO_FUNDING`、`FUNDING_TO_PARTNER`、`FUNDING_TO_CONTRACT`、`CONTRACT_TO_FUNDING` 四个方向；仅 Funding 与 Contract 互转支持 `transferAll=true`，固定金额使用正数十进制字符串。
+
+```java
+import com.sixmm.agent.model.ExecutionEnvironment;
+import com.sixmm.agent.model.QueryUserAssetsRequest;
+import com.sixmm.agent.model.QueryUserAssetsResponse;
+import com.sixmm.agent.model.WalletTransferRequest;
+import com.sixmm.agent.model.WalletTransferQueryRequest;
+import com.sixmm.agent.model.WalletTransferResponse;
+
+QueryUserAssetsResponse assets = client.queryUserAssets(
+        QueryUserAssetsRequest.of("1188041528")
+                .withFunding()
+                .withEnvironment(ExecutionEnvironment.SIMULATED));
+
+WalletTransferResponse transfer = client.walletTransfer(
+        WalletTransferRequest.of("SIM-FUNDING-UNIQUE-001", "agent-user-001",
+                "PARTNER_TO_FUNDING", "10.00000000", false)
+                .withEnvironment(ExecutionEnvironment.SIMULATED));
+
+// 结果未知或 PROCESSING 时查询原单，不换单号重新划转。
+WalletTransferResponse status = client.queryWalletTransfer(
+        WalletTransferQueryRequest.of("SIM-FUNDING-UNIQUE-001")
+                .withEnvironment(ExecutionEnvironment.SIMULATED));
+```
+
+Funding 创建和查单分别调用 `/v1/agent/wallet-transfer`、`/v1/agent/wallet-transfer-status`。响应按 `status=SUCCESS/PROCESSING/FAILED` 判断，不使用原合约划转的 `orderStatus`。结果未知时保留原单号和原环境查单；原 `queryOrder` 不能代替 Funding 专用查单。
+
+有环境字段的资金请求通过 `withEnvironment` 选择：省略或 `PRODUCTION` 使用实盘，`SIMULATED` 使用模拟盘。前端交易模式及 HTTP/WS 目标需另行配置；绑定和入口认证不负责选择资金环境。六类永续查询目前查询正式数据，不接受 `environment`。
+
+秒合约使用 Funding 钱包，入口沿用 `createEntryUrl` / `createEmbedToken` 通用认证，由前端配置对应页面。签发或续签 token 不执行资金划转。完整流程见 [商户接入指南](docs/merchant-integration.md)。
 
 ## 5. 初始化客户端
 
@@ -233,7 +279,7 @@ System.out.println(resp.isSimulatedUser);
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `agentUserId` | string | 是 | 代理商侧用户唯一标识 |
-| `username` | string | 否 | 代理商侧用户展示名称；传入后 6MM 会写入 `users.nick_name` |
+| `username` | string | 否 | 代理商侧用户展示名称，用作平台用户昵称 |
 | `ext` | string | 否 | 扩展信息，建议传 JSON 字符串 |
 
 ### 9.2 响应字段
@@ -735,7 +781,7 @@ mvn clean install
 
 ## 永续批量查询（0.3.0）
 
-使用前必须由运营方部署并启用对应 Agent 查询能力。正式服已于2026-10-10启用并完成SDK调用验证；其他部署环境仍须单独确认。六类方法均为 `/v1/agent/perpetual` 下的签名 POST：
+正式环境已支持六类查询；平台提供的其他接入地址需单独确认可用能力。六类方法均为 `/v1/agent/perpetual` 下的签名 POST：
 
 | 方法 | 后缀 | 玩家参数 |
 | --- | --- | --- |
@@ -748,9 +794,11 @@ mvn clean install
 
 `platformUserIds` 传 1～100 个不重复的十位公开平台用户 ID 字符串，不能传内部 user_id。在支持的接口省略时查询签名商户的全部直属玩家；显式空数组无效。委托接口必传 `orderCategory=NORMAL/CONDITIONAL`，商户归属由鉴权决定，不接受自行指定 Agent ID。
 
-历史时间为 Unix 毫秒半开区间 `[startTime,endTime)`，分别按订单创建、成交、平仓、账变记录创建时间筛选；当前委托/仓位不接受历史时间。PG 当前普通委托的时间是记录创建/更新时间，不保证等于 TK 事件时间。limit 默认500、最大1000，保持筛选条件不变，带 nextCursor 翻页直至 hasMore=false；中间空页也要按 hasMore 继续。不承诺跨页快照或完整增量同步。
+历史时间为 Unix 毫秒半开区间 `[startTime,endTime)`，分别按订单创建、成交、平仓、账变记录创建时间筛选；当前委托/仓位不接受历史时间。普通委托时间表示记录创建/更新时间。limit 默认500、最大1000，保持筛选条件不变，带 nextCursor 翻页直至 hasMore=false；中间空页也要按 hasMore 继续。不承诺跨页快照或完整增量同步。
 
 SDK 自动按紧凑 JSON 数组签名，业务ID与金额保留字符串。当前普通委托省略杠杆、保证金模式；缺省字段不应解释为0。资金账变按明细ID返回，同一流水号可以有多条明细。
+
+各资源的字段类型、状态枚举、保证金模式及缺省规则见 [合约查询返回字段说明](docs/perpetual-response-fields.md)。
 
 六接口共享商户频率额度，默认每秒2次、突发4次，并受并发保护。6905表示频率限制，6904表示暂不可用或并发保护；错误通过 AgentApiException 透传，SDK不会自动重试。业务层决定有限退避后，可保留原游标/筛选条件重新调用SDK，SDK生成新的timestamp/nonce/sign；多个进程也要共享节流策略。
 
