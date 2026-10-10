@@ -19,30 +19,30 @@ Partner guides: [seconds trading, wallets, simulated trading and SDK upgrades (C
 
 ## What The SDK Covers
 
-| Scenario | SDK API | Description |
-| --- | --- | --- |
-| Bind user | `bind` | Create or fetch the binding between a partner user and a 6MM platform user |
-| Fixed amount transfer | `transfer` | Transfer funds into or out of 6MM |
-| Transfer all out | `transferAllOut` | Move all withdrawable user balance back to the partner platform |
-| Reverse order | `reverse` | Reverse a successful transfer when the backend supports a compensation flow |
-| Query order | `queryOrder` | Query one transfer order by partner order number |
-| List orders | `listOrders` | Page through transfer orders for reconciliation |
-| Query partner account | `queryAccount` | Query the partner margin or funding account |
-| Query user assets | `queryUserAssets` | Query Contract assets; use `withFunding()` to include Funding balances |
-| Funding transfer | `walletTransfer` | Partner ↔ Funding or Funding ↔ Contract; confirm the returned status |
-| Funding transfer status | `queryWalletTransfer` | Recover a Funding operation using its original partner order number |
-| Current perpetual orders | `listCurrentPerpetualOrders` | Query current NORMAL or CONDITIONAL orders |
-| Perpetual order history | `listPerpetualOrderHistory` | Query terminal NORMAL or CONDITIONAL orders |
-| Perpetual trades | `listPerpetualTrades` | Query trade fills for an explicit public player list |
-| Current perpetual positions | `listCurrentPerpetualPositions` | Query current positions |
-| Perpetual position history | `listPerpetualPositionHistory` | Query closed positions |
-| Perpetual account ledger | `listPerpetualLedger` | Query individual Contract balance-change records |
-| List supported fiat currencies | `listSupportedFiatCurrencies` | List fiat currencies currently convertible to USDT |
-| Query FX reference rates | `queryExchangeRates` | Query daily fiat-to-USDT reference ratios for all or selected currencies |
-| Direct entry URL | `createEntryUrl` | Create a one-time SSO URL for redirect mode |
-| Embed token | `createEmbedToken` | Create a short-lived token for Trading Widget `tokenProvider` mode |
-| Service version | `version` | Query Agent service version information |
-| Webhook verification | `WebhookVerifier.verify` | Verify transfer final-state callbacks from 6MM |
+| Category | Scenario | SDK API | Description |
+| --- | --- | --- | --- |
+| User binding | Bind user | `bind` | Create or fetch the binding between a partner user and a 6MM platform user |
+| Asset queries | Query partner account | `queryAccount` | Query the partner margin or funding account |
+| Asset queries | Query user assets | `queryUserAssets` | Query Contract assets; use `withFunding()` to include Funding balances |
+| Transfers | Fixed amount transfer | `transfer` | Transfer funds into or out of 6MM |
+| Transfers | Transfer all out | `transferAllOut` | Move all withdrawable user balance back to the partner platform |
+| Transfers | Reverse order | `reverse` | Reverse a successful transfer when the backend supports a compensation flow |
+| Transfers | Query order | `queryOrder` | Query one transfer order by partner order number |
+| Transfers | List orders | `listOrders` | Page through transfer orders for reconciliation |
+| Transfers | Webhook verification | `WebhookVerifier.verify` | Verify transfer final-state callbacks from 6MM |
+| Funding wallet | Funding transfer | `walletTransfer` | Partner ↔ Funding or Funding ↔ Contract; confirm the returned status |
+| Funding wallet | Funding transfer status | `queryWalletTransfer` | Recover a Funding operation using its original partner order number |
+| Trading entry | Direct entry URL | `createEntryUrl` | Create a one-time SSO URL for redirect mode |
+| Trading entry | Embed token | `createEmbedToken` | Create a short-lived token for Trading Widget `tokenProvider` mode |
+| Perpetual data | Current perpetual orders | `listCurrentPerpetualOrders` | Query current NORMAL or CONDITIONAL orders |
+| Perpetual data | Perpetual order history | `listPerpetualOrderHistory` | Query terminal NORMAL or CONDITIONAL orders |
+| Perpetual data | Perpetual trades | `listPerpetualTrades` | Query trade fills for an explicit public player list |
+| Perpetual data | Current perpetual positions | `listCurrentPerpetualPositions` | Query current positions |
+| Perpetual data | Perpetual position history | `listPerpetualPositionHistory` | Query closed positions |
+| Perpetual data | Perpetual account ledger | `listPerpetualLedger` | Query individual Contract balance-change records |
+| Fiat reference rates | List supported fiat currencies | `listSupportedFiatCurrencies` | List fiat currencies currently convertible to USDT |
+| Fiat reference rates | Query FX reference rates | `queryExchangeRates` | Query daily fiat-to-USDT reference ratios for all or selected currencies |
+| Service information | Service version | `version` | Query Agent service version information |
 
 ## Configuration
 

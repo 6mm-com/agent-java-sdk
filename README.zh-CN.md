@@ -15,30 +15,30 @@ SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏�
 
 ## 2. 典型接入场景
 
-| 场景 | SDK 方法 | 说明 |
-| --- | --- | --- |
-| 绑定用户 | `bind` | 为代理商用户创建或获取 6MM 平台用户绑定关系 |
-| 固定金额划转 | `transfer` | 支持转入平台和转出平台 |
-| 一键全部划出 | `transferAllOut` | 把用户在 6MM 侧可划出的余额划回代理商平台 |
-| 冲正 | `reverse` | 对已成功的划转订单发起反向处理 |
-| 查询订单 | `queryOrder` | 按代理商订单号查询单笔划转订单 |
-| 查询订单列表 | `listOrders` | 分页查询划转订单 |
-| 查询代理商资金 | `queryAccount` | 查询代理商保证金账户 |
-| 查询用户资产 | `queryUserAssets` | 查询合约资产；`withFunding()` 可同时查询 Funding 余额 |
-| Funding 划转 | `walletTransfer` | 商户与 Funding 增减，或 Funding 与 Contract 互转 |
-| Funding 查单 | `queryWalletTransfer` | 按原商户单号恢复 Funding 操作结果 |
-| 当前合约委托 | `listCurrentPerpetualOrders` | 查询普通或条件委托当前状态 |
-| 合约委托历史 | `listPerpetualOrderHistory` | 查询普通或条件委托终态 |
-| 合约成交明细 | `listPerpetualTrades` | 按显式公开玩家列表查询成交 |
-| 当前合约持仓 | `listCurrentPerpetualPositions` | 查询当前持仓 |
-| 合约持仓历史 | `listPerpetualPositionHistory` | 查询已结束持仓 |
-| 合约账变明细 | `listPerpetualLedger` | 查询逐条合约资金账变 |
-| 查询支持法币 | `listSupportedFiatCurrencies` | 查询当前支持换算为 USDT 的法币列表 |
-| 查询参考汇率 | `queryExchangeRates` | 查询全部或指定法币兑 USDT 的日级参考比例 |
-| 直接跳转入口 | `createEntryUrl` | 生成一次性 SSO 跳转链接 |
-| 内嵌交易 token | `createEmbedToken` | 给 Trading Widget `tokenProvider` 模式签发短期 token |
-| 服务版本 | `version` | 查询 agent 服务版本信息 |
-| Webhook 验签 | `WebhookVerifier.verify` | 校验 6MM 推送的划转终态通知 |
+| 分类 | 场景 | SDK 方法 | 说明 |
+| --- | --- | --- | --- |
+| 用户绑定 | 绑定用户 | `bind` | 为代理商用户创建或获取 6MM 平台用户绑定关系 |
+| 资产查询 | 查询代理商资金 | `queryAccount` | 查询代理商保证金账户 |
+| 资产查询 | 查询用户资产 | `queryUserAssets` | 查询合约资产；`withFunding()` 可同时查询 Funding 余额 |
+| 资金划转 | 固定金额划转 | `transfer` | 支持转入平台和转出平台 |
+| 资金划转 | 一键全部划出 | `transferAllOut` | 把用户在 6MM 侧可划出的余额划回代理商平台 |
+| 资金划转 | 冲正 | `reverse` | 对已成功的划转订单发起反向处理 |
+| 资金划转 | 查询订单 | `queryOrder` | 按代理商订单号查询单笔划转订单 |
+| 资金划转 | 查询订单列表 | `listOrders` | 分页查询划转订单 |
+| 资金划转 | Webhook 验签 | `WebhookVerifier.verify` | 校验 6MM 推送的划转终态通知 |
+| Funding 钱包 | Funding 划转 | `walletTransfer` | 商户与 Funding 增减，或 Funding 与 Contract 互转 |
+| Funding 钱包 | Funding 查单 | `queryWalletTransfer` | 按原商户单号恢复 Funding 操作结果 |
+| 交易入口 | 直接跳转入口 | `createEntryUrl` | 生成一次性 SSO 跳转链接 |
+| 交易入口 | 内嵌交易 token | `createEmbedToken` | 给 Trading Widget `tokenProvider` 模式签发短期 token |
+| 合约数据 | 当前合约委托 | `listCurrentPerpetualOrders` | 查询普通或条件委托当前状态 |
+| 合约数据 | 合约委托历史 | `listPerpetualOrderHistory` | 查询普通或条件委托终态 |
+| 合约数据 | 合约成交明细 | `listPerpetualTrades` | 按显式公开玩家列表查询成交 |
+| 合约数据 | 当前合约持仓 | `listCurrentPerpetualPositions` | 查询当前持仓 |
+| 合约数据 | 合约持仓历史 | `listPerpetualPositionHistory` | 查询已结束持仓 |
+| 合约数据 | 合约账变明细 | `listPerpetualLedger` | 查询逐条合约资金账变 |
+| 法币汇率 | 查询支持法币 | `listSupportedFiatCurrencies` | 查询当前支持换算为 USDT 的法币列表 |
+| 法币汇率 | 查询参考汇率 | `queryExchangeRates` | 查询全部或指定法币兑 USDT 的日级参考比例 |
+| 服务信息 | 服务版本 | `version` | 查询 agent 服务版本信息 |
 
 ## 3. 接入前准备
 
