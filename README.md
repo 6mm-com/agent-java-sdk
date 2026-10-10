@@ -787,9 +787,9 @@ If a business project uses local installation:
 mvn clean install
 ```
 
-## Perpetual queries (0.3.0 candidate)
+## Perpetual queries (0.3.0)
 
-These methods require the corresponding Agent perpetual-query feature to be deployed and enabled by the operator. This candidate is not confirmation that production has enabled the feature. All six methods use signed POST requests under `/v1/agent/perpetual`.
+These methods require the corresponding Agent perpetual-query feature to be deployed and enabled by the operator. The production feature was enabled and checked on 2026-10-10; other deployments must confirm their own readiness. All six methods use signed POST requests under `/v1/agent/perpetual`.
 
 | Method | Route | Player selection |
 | --- | --- | --- |
