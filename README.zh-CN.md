@@ -644,8 +644,12 @@ timestamp + nonce + rawBody
 
 - 拒绝时间戳与当前时间相差超过 5 分钟的请求。
 - 缓存 nonce，避免重放。
-- 按 `WebhookVerifier.idempotencyKey(rawBody)` 做幂等。
+- 资金事件按 `WebhookVerifier.idempotencyKey(rawBody)` 做幂等；该辅助方法目前对强平预警返回空串，预警须单独按通知 ID 处理。
 - 返回 HTTP 2xx 表示处理成功；非 2xx 会触发 6MM 重试。
+
+完整四类事件、强平预警字段、新旧事件兼容、成功/失败响应例子见 [Webhook 对接说明](WEBHOOKS.md)。强平预警事件为 `liquidation.warning`（历史 `LIQUIDATION_WARNING`），验签并核对商户/环境后，业务代码按 `liquidation.warning:<notificationId>` 持久去重；不要使用辅助方法返回的空串。
+
+平台只看 HTTP 状态码，不解析响应正文；`200 + {"success":false}` 仍会被确认成功，204 空正文也可确认。业务处理或可靠保存通知后再返回 2xx，同正文重复通知也返回 2xx。202 仅适用于已经可靠持久接管的任务。响应丢失等情况仍可能造成重复投递，需要持久去重。本次只更新文档，SDK 代码、版本号和 tag 不变。
 
 ## 21. 异常处理
 

@@ -692,21 +692,48 @@ Partner-side recommendations:
 
 - Reject requests whose timestamp differs from server time by more than 5 minutes.
 - Cache nonce values to prevent replay.
-- Deduplicate by `WebhookVerifier.idempotencyKey(rawBody)`.
-- Return HTTP 2xx after successful processing. Non-2xx responses may trigger retries.
+- For funding events, deduplicate by `WebhookVerifier.idempotencyKey(rawBody)`. The current helper returns an empty key for liquidation warnings; handle their notification ID separately as described below.
+- Return HTTP 2xx only after successful processing or durable acceptance. Non-2xx responses and timeouts follow the failure retry policy. The platform does not parse the response body.
 
 Webhook events:
+
+See [the complete Webhook guide](WEBHOOKS.md) for the shared callback URL, all four events, liquidation warning fields, legacy event compatibility, and response examples. `liquidation.warning` (legacy `LIQUIDATION_WARNING`) uses `liquidation.warning:<notificationId>` within the merchant and environment scope. The current SDK helper handles funding events only; construct the warning key in your application after signature and ownership checks. This documentation update does not change SDK code, versions, or tags.
 
 | `event` | Trigger | Common `targetStatus` |
 | --- | --- | --- |
 | `transfer.completed` | Fixed amount transfer or transfer-all-out reaches final state. Original order may also emit this after reverse | `SUCCESS` / `FAILED` / `REVERSED` |
 | `reverse.completed` | Reverse order reaches final state | `SUCCESS` / `FAILED` |
 | `transfer.dead` | System retries cannot confirm the final state and manual intervention is required | `DEAD` |
+| `liquidation.warning` | Liquidation risk warning | Not applicable; use `notificationId` |
 
 `platformUserId` in webhook payload is the same value returned by `bind`.
-`agentUserId` is the partner-side user ID. Use
-`orderType + orderId + targetStatus` or the SDK-generated `idempotencyKey` for
-deduplication.
+`agentUserId` is the partner-side user ID. For funding events, use
+`orderType:orderId:targetStatus` or the SDK-generated `idempotencyKey` for
+deduplication. For liquidation warnings, use the notification key described above.
+
+### Acknowledging callbacks
+
+HTTP 200–299, including 202 and 204, acknowledges delivery; after the success status is persisted, the platform stops automatic retries. Response fields such as `code` or `success` do not affect this decision. Return 202 only after durable acceptance, not after starting an in-memory task. A repeated notification with the same identity and body should also receive 2xx without repeating business effects.
+
+Success after processing or durable acceptance:
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"result":"RECEIVED"}
+```
+
+Failure when processing and durable storage both failed:
+
+```http
+HTTP/1.1 503 Service Unavailable
+Content-Type: application/json
+
+{"result":"FAILED","message":"temporary storage failure"}
+```
+
+HTTP 200 with `{"success":false}` still acknowledges delivery. A valid funding callback describing a FAILED order should receive 2xx once that result is recorded. Lost responses or failure to persist the sender's success state can still cause duplicate deliveries; durable deduplication is required. See [204, duplicate, signature failure, and retry examples](WEBHOOKS.md#响应成功判定与停止重试).
 
 ## Error Handling
 
