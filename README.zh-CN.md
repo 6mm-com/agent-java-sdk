@@ -26,7 +26,7 @@ SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏�
 | 资金划转 | 查询订单 | `queryOrder` | 按代理商订单号查询单笔划转订单 |
 | 资金划转 | 查询订单列表 | `listOrders` | 分页查询划转订单 |
 | 资金划转 | Webhook 验签 | `WebhookVerifier.verify` | 校验 6MM 推送的划转终态通知 |
-| 资金钱包 | 资金钱包划转 | `walletTransfer` | 商户与资金钱包增减，或资金钱包与 Contract 互转 |
+| 资金钱包 | 资金钱包划转 | `walletTransfer` | 商户与资金钱包增减，或资金钱包与合约钱包互转 |
 | 资金钱包 | 资金钱包查单 | `queryWalletTransfer` | 按原商户单号恢复资金钱包操作结果 |
 | 交易入口 | 直接跳转入口 | `createEntryUrl` | 生成一次性 SSO 跳转链接 |
 | 交易入口 | 内嵌交易 token | `createEmbedToken` | 给 Trading Widget `tokenProvider` 模式签发短期 token |
@@ -94,7 +94,7 @@ JitPack 这类基于 GitHub 构建的服务。
 
 ## 资金钱包与模拟环境
 
-资金钱包接口当前支持 USDT。`walletTransfer` 提供 `PARTNER_TO_FUNDING`、`FUNDING_TO_PARTNER`、`FUNDING_TO_CONTRACT`、`CONTRACT_TO_FUNDING` 四个方向；仅资金钱包与 Contract 互转支持 `transferAll=true`，固定金额使用正数十进制字符串。
+资金钱包接口当前支持 USDT。`walletTransfer` 提供 `PARTNER_TO_FUNDING`、`FUNDING_TO_PARTNER`、`FUNDING_TO_CONTRACT`、`CONTRACT_TO_FUNDING` 四个方向；仅资金钱包与合约钱包互转支持 `transferAll=true`，固定金额使用正数十进制字符串。
 
 ```java
 import com.sixmm.agent.model.ExecutionEnvironment;
