@@ -2,7 +2,7 @@
 
 适用接口：`POST /v1/agent/perpetual/orders/current`、`orders/history`、`trades`、`positions/current`、`positions/history`、`account/ledger`。本文按 2026-10-10 正式实现解释字段，与 [商户接入指南](merchant-integration.md) 配合使用。
 
-以下是业务查询返回，不包含秒合约下注、秒合约结算或 Funding 钱包流水。Java SDK 将六接口解析为 `PerpetualResponse`；HTTP 账变接口使用独立的精简 `data` 字段集合。
+以下是业务查询返回，不包含秒合约下注、秒合约结算或资金钱包流水。Java SDK 将六接口解析为 `PerpetualResponse`；HTTP 账变接口使用独立的精简 `data` 字段集合。
 
 ## 1. 公共响应与分页
 

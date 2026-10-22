@@ -19,15 +19,15 @@ SDK 只应该运行在代理商后端服务中。`apiSecret` 不能下发到浏�
 | --- | --- | --- | --- |
 | 用户绑定 | 绑定用户 | `bind` | 为代理商用户创建或获取 6MM 平台用户绑定关系 |
 | 资产查询 | 查询代理商资金 | `queryAccount` | 查询代理商保证金账户 |
-| 资产查询 | 查询用户资产 | `queryUserAssets` | 查询合约资产；`withFunding()` 可同时查询 Funding 余额 |
+| 资产查询 | 查询用户资产 | `queryUserAssets` | 查询合约资产；`withFunding()` 可同时查询资金钱包余额 |
 | 资金划转 | 固定金额划转 | `transfer` | 支持转入平台和转出平台 |
 | 资金划转 | 一键全部划出 | `transferAllOut` | 把用户在 6MM 侧可划出的余额划回代理商平台 |
 | 资金划转 | 冲正 | `reverse` | 对已成功的划转订单发起反向处理 |
 | 资金划转 | 查询订单 | `queryOrder` | 按代理商订单号查询单笔划转订单 |
 | 资金划转 | 查询订单列表 | `listOrders` | 分页查询划转订单 |
 | 资金划转 | Webhook 验签 | `WebhookVerifier.verify` | 校验 6MM 推送的划转终态通知 |
-| Funding 钱包 | Funding 划转 | `walletTransfer` | 商户与 Funding 增减，或 Funding 与 Contract 互转 |
-| Funding 钱包 | Funding 查单 | `queryWalletTransfer` | 按原商户单号恢复 Funding 操作结果 |
+| 资金钱包 | 资金钱包划转 | `walletTransfer` | 商户与资金钱包增减，或资金钱包与 Contract 互转 |
+| 资金钱包 | 资金钱包查单 | `queryWalletTransfer` | 按原商户单号恢复资金钱包操作结果 |
 | 交易入口 | 直接跳转入口 | `createEntryUrl` | 生成一次性 SSO 跳转链接 |
 | 交易入口 | 内嵌交易 token | `createEmbedToken` | 给 Trading Widget `tokenProvider` 模式签发短期 token |
 | 合约数据 | 当前合约委托 | `listCurrentPerpetualOrders` | 查询普通或条件委托当前状态 |
@@ -94,7 +94,7 @@ JitPack 这类基于 GitHub 构建的服务。
 
 ## 资金钱包与模拟环境
 
-Funding 接口当前支持 USDT。`walletTransfer` 提供 `PARTNER_TO_FUNDING`、`FUNDING_TO_PARTNER`、`FUNDING_TO_CONTRACT`、`CONTRACT_TO_FUNDING` 四个方向；仅 Funding 与 Contract 互转支持 `transferAll=true`，固定金额使用正数十进制字符串。
+资金钱包接口当前支持 USDT。`walletTransfer` 提供 `PARTNER_TO_FUNDING`、`FUNDING_TO_PARTNER`、`FUNDING_TO_CONTRACT`、`CONTRACT_TO_FUNDING` 四个方向；仅资金钱包与 Contract 互转支持 `transferAll=true`，固定金额使用正数十进制字符串。
 
 ```java
 import com.sixmm.agent.model.ExecutionEnvironment;
@@ -120,11 +120,11 @@ WalletTransferResponse status = client.queryWalletTransfer(
                 .withEnvironment(ExecutionEnvironment.SIMULATED));
 ```
 
-Funding 创建和查单分别调用 `/v1/agent/wallet-transfer`、`/v1/agent/wallet-transfer-status`。响应按 `status=SUCCESS/PROCESSING/FAILED` 判断，不使用原合约划转的 `orderStatus`。结果未知时保留原单号和原环境查单；原 `queryOrder` 不能代替 Funding 专用查单。
+资金钱包创建和查单分别调用 `/v1/agent/wallet-transfer`、`/v1/agent/wallet-transfer-status`。响应按 `status=SUCCESS/PROCESSING/FAILED` 判断，不使用原合约划转的 `orderStatus`。结果未知时保留原单号和原环境查单；原 `queryOrder` 不能代替资金钱包专用查单。
 
 有环境字段的资金请求通过 `withEnvironment` 选择：省略或 `PRODUCTION` 使用实盘，`SIMULATED` 使用模拟盘。前端交易模式及 HTTP/WS 目标需另行配置；绑定和入口认证不负责选择资金环境。六类永续查询目前查询正式数据，不接受 `environment`。
 
-秒合约使用 Funding 钱包，入口沿用 `createEntryUrl` / `createEmbedToken` 通用认证，由前端配置对应页面。签发或续签 token 不执行资金划转。完整流程见 [商户接入指南](docs/merchant-integration.md)。
+秒合约使用资金钱包，入口沿用 `createEntryUrl` / `createEmbedToken` 通用认证，由前端配置对应页面。签发或续签 token 不执行资金划转。完整流程见 [商户接入指南](docs/merchant-integration.md)。
 
 ## 5. 初始化客户端
 

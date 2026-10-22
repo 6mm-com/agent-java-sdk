@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 秒合约跳转 | `createEntryUrl` + 对应玩法的 `redirectPath` | 支持涨跌、高低、网格预测页面 |
 | 秒合约内嵌 | 通用 `createEmbedToken` + Trading Widget 对应页面 | 沿用现有认证；无需增加预测专用 token |
-| 秒合约钱包 | `queryUserAssets(includeFunding=true)`、`walletTransfer`、`queryWalletTransfer` | 当前 Funding 接口使用 USDT |
+| 秒合约钱包 | `queryUserAssets(includeFunding=true)`、`walletTransfer`、`queryWalletTransfer` | 当前资金钱包接口使用 USDT |
 | 永续合约业务数据 | 六类 `/v1/agent/perpetual/**` 查询 | 正式环境已支持；Java SDK `v0.3.0` 包含对应方法 |
 | 模拟资金操作 | 支持环境字段的接口显式传 `SIMULATED` | 用户绑定不变，资金目标切换至模拟环境 |
 | 模拟合约六类数据查询 | 本指南所列六接口尚无 `environment` 字段 | 不能据此查询模拟盘订单、成交、持仓或账变 |
@@ -20,7 +20,7 @@
 
 商户后端通过 Java SDK 或签名 HTTP 请求调用 `/v1/agent/**`，并为自己的前端提供认证、钱包和查询接口。
 
-本文“合约数据”指用户委托、成交、持仓和合约账变。秒合约下注记录、秒合约结算记录、Funding 账变及公开行情不属于这六类永续查询。
+本文“合约数据”指用户委托、成交、持仓和合约账变。秒合约下注记录、秒合约结算记录、资金钱包账变及公开行情不属于这六类永续查询。
 
 ## 2. 商户需要准备的配置
 
@@ -89,9 +89,9 @@ String webUrl = entry.webUrl;
 
 | 产品 | 路径 | 钱包 |
 | --- | --- | --- |
-| 涨跌预测 | `/zh-CN/up-down?tradingMode=real` 或 `demo` | Funding |
-| 高低预测 | `/zh-CN/high-low?tradingMode=real` 或 `demo` | Funding |
-| 网格预测 | `/zh-CN/grid-prediction?tradingMode=real` 或 `demo` | Funding |
+| 涨跌预测 | `/zh-CN/up-down?tradingMode=real` 或 `demo` | 资金钱包 |
+| 高低预测 | `/zh-CN/high-low?tradingMode=real` 或 `demo` | 资金钱包 |
+| 网格预测 | `/zh-CN/grid-prediction?tradingMode=real` 或 `demo` | 资金钱包 |
 | 永续合约 | `/zh-CN/futures/BTCUSDT?tradingMode=real` 或 `demo` | Contract |
 
 `redirectPath` 是前端内部相对路径，必须以 `/` 开头；`returnUrl` 是商户绝对 HTTP/HTTPS 地址。`expireAt` 为 Unix 秒。一次性 ticket 过期或已消费后重新签发，不能长期缓存或共享给其他用户。Agent 保存目标路径；页面模式由前端处理，不会因签发入口链接自动执行资金划转。
@@ -209,7 +209,7 @@ SDK 在初始化和续签时调用 `tokenProvider`，每次都应请求新的 to
 | 钱包 | 余额来源 | 用途 |
 | --- | --- | --- |
 | 商户自己的用户钱包 | 商户自己的账务系统 | 用户在商户侧的可用余额 |
-| 平台 Funding | `queryUserAssets` 的 `funding` | 秒合约资金及 Funding/Contract 互转 |
+| 平台资金钱包 | `queryUserAssets` 的 `funding` | 秒合约资金及资金钱包/Contract 互转 |
 | 平台 Contract | `queryUserAssets` 的合约资产字段 | 永续合约保证金及可划出余额 |
 
 `queryAccount` 查询商户平台保证金账户，不是商户用户钱包。该接口没有 `environment` 参数，不能作为模拟用户资产查询。
@@ -223,33 +223,33 @@ QueryUserAssetsResponse assets = client.queryUserAssets(
                 .withEnvironment(ExecutionEnvironment.SIMULATED));
 ```
 
-接口：`POST /v1/agent/query-user-assets`。`includeFunding=true` 时才请求 Funding；默认沿用原合约资产查询语义。
+接口：`POST /v1/agent/query-user-assets`。`includeFunding=true` 时才请求资金钱包；默认沿用原合约资产查询语义。
 
 | 响应字段 | 含义 |
 | --- | --- |
 | `walletBalance`、`availableBalance`、`frozenMargin`、`usedMargin`、`isolatedMargin` | 合约钱包相关金额 |
 | `funding.assetCode` | 当前为 USDT |
-| `funding.availableAmount`、`heldAmount`、`totalAmount` | Funding 可用、占用及总金额 |
-| `funding.materialized` | Funding 账户是否已物化 |
+| `funding.availableAmount`、`heldAmount`、`totalAmount` | 资金钱包可用、占用及总金额 |
+| `funding.materialized` | 资金钱包是否已物化 |
 | `environment` | 显式传环境时回显；省略环境的旧请求不返回此字段 |
 | `isSimulatedUser` | 用户账户性质；不能代替交易环境选择 |
 
 金额以字符串或 `BigDecimal` 处理，不使用 `float`/`double`。
 
-### 5.2 Funding 的四种方向
+### 5.2 资金钱包的四种方向
 
 创建：`POST /v1/agent/wallet-transfer`，SDK `walletTransfer`。
 
 | `direction` | 资金流向 | `transferAll` |
 | --- | --- | --- |
-| `PARTNER_TO_FUNDING` | 商户 → 平台 Funding | 仅固定金额 |
-| `FUNDING_TO_PARTNER` | 平台 Funding → 商户 | 仅固定金额 |
-| `FUNDING_TO_CONTRACT` | 同环境平台 Funding → Contract | 支持固定金额或全部可划出 |
-| `CONTRACT_TO_FUNDING` | 同环境平台 Contract → Funding | 支持固定金额或全部可划出 |
+| `PARTNER_TO_FUNDING` | 商户 → 平台资金钱包 | 仅固定金额 |
+| `FUNDING_TO_PARTNER` | 平台资金钱包 → 商户 | 仅固定金额 |
+| `FUNDING_TO_CONTRACT` | 同环境平台资金钱包 → Contract | 支持固定金额或全部可划出 |
+| `CONTRACT_TO_FUNDING` | 同环境平台 Contract → 资金钱包 | 支持固定金额或全部可划出 |
 
 当前币种仅支持 USDT。固定金额必须为正数字符串，最多 8 位小数，不能用科学计数法。`transferAll=true` 时省略 `amount`，按最终响应 `amount` 入账；“全部”只包含可划出部分。
 
-示例：商户向模拟 Funding 转入 10 USDT。先在商户系统保存该业务单和环境，再发请求：
+示例：商户向模拟资金钱包转入 10 USDT。先在商户系统保存该业务单和环境，再发请求：
 
 ```java
 String fundingOrderNo = "SIM-FUNDING-20261010-000001";
@@ -259,7 +259,7 @@ WalletTransferResponse transfer = client.walletTransfer(
                 .withEnvironment(ExecutionEnvironment.SIMULATED));
 ```
 
-Funding 全部可划出资金转至模拟 Contract：
+资金钱包全部可划出资金转至模拟 Contract：
 
 ```java
 WalletTransferResponse move = client.walletTransfer(
@@ -268,11 +268,11 @@ WalletTransferResponse move = client.walletTransfer(
                 .withEnvironment(ExecutionEnvironment.SIMULATED));
 ```
 
-同一操作必须沿用原 `agentOrderNo`；不同操作和不同环境使用不同单号。同单号改金额、用户、方向或环境会被拒绝。Funding/Contract 互转仅在同一环境内进行，不能将模拟资金转为实盘资金。
+同一操作必须沿用原 `agentOrderNo`；不同操作和不同环境使用不同单号。同单号改金额、用户、方向或环境会被拒绝。资金钱包/Contract 互转仅在同一环境内进行，不能将模拟资金转为实盘资金。
 
 ### 5.3 结果确认与未知结果恢复
 
-Funding 响应通过 `status` 表示 `SUCCESS`、`PROCESSING` 或 `FAILED`，并返回 `orderNo`、`direction`、`currency`、`amount`、`resultCode` 等。`code=0` 仅表示请求处理成功，需要继续判断 `status`。
+资金钱包响应通过 `status` 表示 `SUCCESS`、`PROCESSING` 或 `FAILED`，并返回 `orderNo`、`direction`、`currency`、`amount`、`resultCode` 等。`code=0` 仅表示请求处理成功，需要继续判断 `status`。
 
 | 结果 | 商户处理 |
 | --- | --- |
@@ -281,7 +281,7 @@ Funding 响应通过 `status` 表示 `SUCCESS`、`PROCESSING` 或 `FAILED`，并
 | HTTP 超时、网络错误、结果无法解析 | 视为结果未知，查询原单；不能直接认定失败或创建新单重试 |
 | 已查明 `FAILED` | 按明确失败结果解除本地预留；需再次发起业务时新建业务单 |
 
-Funding 查单使用专用接口 `POST /v1/agent/wallet-transfer-status`：
+资金钱包查单使用专用接口 `POST /v1/agent/wallet-transfer-status`：
 
 ```java
 WalletTransferResponse recovered = client.queryWalletTransfer(
@@ -291,13 +291,13 @@ WalletTransferResponse recovered = client.queryWalletTransfer(
 
 该接口会恢复原资金操作状态，不能用旧 `queryOrder` 代替。建议保存原单环境，查单时显式传入相同值。`wallet-transfer-status` 省略 `environment` 时，服务端按原订单保存的环境查询和恢复，模拟单仍使用模拟环境；只有显式传入的环境与原单不一致时，才返回 `102002`（`order environment mismatch`）。省略环境时，响应也不带 `environment` 字段，不要将其解读为实盘订单。
 
-商户本地出入账均做幂等；发起前持久化订单和余额预留，结果未知时保留待确认。Funding 接入以专用查单确认终态；不要假定旧合约划转 Webhook 或冲正方法自动适用于 Funding。
+商户本地出入账均做幂等；发起前持久化订单和余额预留，结果未知时保留待确认。资金钱包接入以专用查单确认终态；不要假定旧合约划转 Webhook 或冲正方法自动适用于资金钱包。
 
 ### 5.4 原合约划转继续保留
 
 原 `transfer`、`transferAllOut`、`reverse`、`queryOrder`、`listOrders` 继续处理原合约划转流程。`queryOrder` 查询的是资金划转订单，`listOrders` 是划转对账列表；永续交易委托改用下一节的六类查询。
 
-原资金响应使用 `orderStatus`；Funding 响应使用 `status`，不要混用。原划转 Webhook 验签使用 `X-Agent-Timestamp`、`X-Agent-Nonce`、`X-Agent-Signature`，签名原文是 `timestamp + nonce + rawBody`；先验证原始请求体，再反序列化并幂等入账。显式模拟环境通知包含 `environment=SIMULATED`，正式通知保持旧字段兼容。金额、单号、状态和环境需要与本地业务单核对。
+原资金响应使用 `orderStatus`；资金钱包响应使用 `status`，不要混用。原划转 Webhook 验签使用 `X-Agent-Timestamp`、`X-Agent-Nonce`、`X-Agent-Signature`，签名原文是 `timestamp + nonce + rawBody`；先验证原始请求体，再反序列化并幂等入账。显式模拟环境通知包含 `environment=SIMULATED`，正式通知保持旧字段兼容。金额、单号、状态和环境需要与本地业务单核对。
 
 ## 6. 查询永续合约数据
 
@@ -421,7 +421,7 @@ HTTP 成功不代表业务成功，必须检查 `code`。Java SDK 会以 `AgentA
 | --- | --- | --- |
 | 绑定及入口认证 | 通用绑定、通用票据/token | 同一身份及通用认证，无需重新绑定 |
 | 新资金划转及余额查询 | 省略或 `PRODUCTION` | 必须显式 `SIMULATED` |
-| Funding 原单查单 `wallet-transfer-status` | 显式 `PRODUCTION`；省略时沿用原单环境 | 显式 `SIMULATED`；省略时沿用原单环境 |
+| 资金钱包原单查单 `wallet-transfer-status` | 显式 `PRODUCTION`；省略时沿用原单环境 | 显式 `SIMULATED`；省略时沿用原单环境 |
 | 前端模式 | `tradingMode=real` 或 SDK 对应配置 | `tradingMode=demo` 或 SDK 对应配置 |
 | HTTP/WS 目标 | 实盘运行目标 | 模拟运行目标，按平台前端配置 |
 | 余额及资金查单 | 实盘钱包、实盘原单 | 模拟钱包、模拟原单 |
@@ -431,9 +431,9 @@ Java `v0.3.0` 支持环境的请求类型包括 `TransferRequest`、`TransferAll
 
 商户后端须在发起、查询、恢复和对账中保持原单环境一致。模式由后端受控配置或授权选择，不能在超时后回退到省略环境。建议单号带 `SIM-` 前缀，数据库保存明确环境，并让模拟业务使用商户自己的虚拟账务流程。
 
-`isSimulatedUser` 是账户性质；它不负责将请求路由到模拟盘。发起新资金划转或查询余额时，即使该字段为 true，省略 `environment` 仍按实盘目标处理。Funding 原单查单的环境恢复规则见第 5.3 节。
+`isSimulatedUser` 是账户性质；它不负责将请求路由到模拟盘。发起新资金划转或查询余额时，即使该字段为 true，省略 `environment` 仍按实盘目标处理。资金钱包原单查单的环境恢复规则见第 5.3 节。
 
-模拟秒合约联调顺序：绑定 → 显式模拟余额查询 → 小额模拟 Funding 转入 → 查询原单确认成功 → 跳转或内嵌模拟秒合约页面 → 查询模拟余额 → 需要退出资金时按模拟 Funding 单独划回。模拟永续联调可将模拟 Funding 转至模拟 Contract，然后在模拟合约页面交易；业务数据验收使用平台支持的模拟交易前端/用户接口，本指南六类商户查询不能替代它。
+模拟秒合约联调顺序：绑定 → 显式模拟余额查询 → 小额模拟资金钱包转入 → 查询原单确认成功 → 跳转或内嵌模拟秒合约页面 → 查询模拟余额 → 需要退出资金时按模拟资金钱包单独划回。模拟永续联调可将模拟资金钱包转至模拟 Contract，然后在模拟合约页面交易；业务数据验收使用平台支持的模拟交易前端/用户接口，本指南六类商户查询不能替代它。
 
 ## 8. 旧 SDK 升级
 
@@ -443,7 +443,7 @@ Java `v0.3.0` 支持环境的请求类型包括 `TransferRequest`、`TransferAll
 | --- | --- |
 | 只沿用旧 SDK 原有实盘业务，不显式传 environment | 正式接口保留旧响应形状，可继续使用；不因本次查询上线被强制升级 |
 | 秒合约已有通用内嵌认证 | 复用认证和续签，调整产品页面；资金新增能力按下列要求升级 |
-| 要使用 Funding 余额/划转 | 使用包含 `withFunding`、`walletTransfer` 和专用查单的版本 |
+| 要使用资金钱包余额/划转 | 使用包含 `withFunding`、`walletTransfer` 和专用查单的版本 |
 | 要显式对接模拟资金环境 | 使用包含 environment 请求及响应模型的版本 |
 | 要调用六类永续查询 | 使用公开 Java SDK `v0.3.0`，包含六方法和数组签名 |
 
@@ -486,8 +486,8 @@ mvn dependency:tree -Dincludes=com.sixmm.exchange.sdk:agent
 ### 8.3 升级后适配点
 
 1. 请求/响应支持 `environment`。旧请求省略环境保持实盘兼容；显式传环境会回显环境，旧严格 JSON 模型可能不能解析，需升级模型。
-2. 资产查询新增可选 Funding：使用 `withFunding()` 后读取 `funding`，避免拿 Contract 余额显示秒合约余额。
-3. Funding 使用新 `/wallet-transfer`、`/wallet-transfer-status` 路径；不要调用旧拼写或原合约查单接口。
+2. 资产查询新增可选资金钱包：使用 `withFunding()` 后读取 `funding`，避免拿 Contract 余额显示秒合约余额。
+3. 资金钱包使用新 `/wallet-transfer`、`/wallet-transfer-status` 路径；不要调用旧拼写或原合约查单接口。
 4. 六查询使用 `platformUserIds` 字符串数组和游标，签名器必须支持紧凑 JSON 数组。旧 Java `List.toString()` 格式不符合新接口签名。
 5. 划转订单、永续交易委托、条件单及成交分别保存，响应状态字段按各接口契约解析。
 6. 模拟环境回调增加 environment；原始请求体验签方式不变，幂等时同时校验原单环境。
@@ -534,8 +534,8 @@ agentCode=MERCHANT_CODE&limit=100&nonce=fresh-random-value&orderCategory=NORMAL&
 | 用户绑定 | 获取并保存公开 platformUserId，其他商户玩家无法被查询 |
 | 秒合约跳转 | ticket 可进入对应玩法及模式，过期/消费后重新签发 |
 | 秒合约内嵌 | 既有 tokenProvider 可登录并续签，新实例使用新通道；签 token 不增加资金单 |
-| Funding 固定金额 | 保存原单，确认 SUCCESS 后两端账务一致；使用实际响应金额 |
-| Funding/Contract 互转 | 来源及目标钱包在同环境内变化，冻结部分不被全部划出 |
+| 资金钱包固定金额 | 保存原单，确认 SUCCESS 后两端账务一致；使用实际响应金额 |
+| 资金钱包/Contract 互转 | 来源及目标钱包在同环境内变化，冻结部分不被全部划出 |
 | 结果未知 | 模拟网络超时后只查原单，不产生第二笔资金操作 |
 | 模拟隔离 | 所有模拟资金请求/恢复显式 SIMULATED；模拟前端 HTTP/WS 目标正确；实盘余额不变 |
 | 合约六查询 | 六接口可用，必填玩家/类别、毫秒时间、空页及非空分页均正确处理 |
